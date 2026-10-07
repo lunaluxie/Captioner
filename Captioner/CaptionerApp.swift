@@ -4,7 +4,6 @@ import SwiftUI
 @main
 struct CaptionerApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var updater = AppUpdater()
     @State private var queue = CaptionQueue.shared
     @State private var appState = AppState()
 
@@ -15,19 +14,17 @@ struct CaptionerApp: App {
     var body: some Scene {
         Window("Captioner", id: "main") {
             MainView()
-                .environment(updater)
                 .environment(queue)
                 .environment(appState)
                 .frame(minWidth: 960, minHeight: 600)
         }
         .defaultSize(width: 1320, height: 820)
         .commands {
-            AppCommands(updater: updater, queue: queue, appState: appState)
+            AppCommands(queue: queue, appState: appState)
         }
 
         Settings {
             SettingsView()
-                .environment(updater)
         }
     }
 }

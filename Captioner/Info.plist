@@ -19,11 +19,5 @@
 	</array>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Captioner listens to the speech in your videos to generate captions, entirely on this Mac.</string>
-	<key>SUEnableAutomaticChecks</key>
-	<true/>
-	<key>SUFeedURL</key>
-	<string>https://beardfm.app/captioner/appcast.xml</string>
-	<key>SUPublicEDKey</key>
-	<string>IOZ//IFwXMMTJ2IR0ty+0bCvVKufhfJ1XRQy3XelIhA=</string>
 </dict>
 </plist>

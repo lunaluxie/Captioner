@@ -2,7 +2,6 @@ import AppKit
 import SwiftUI
 
 struct AppCommands: Commands {
-    let updater: AppUpdater
     let queue: CaptionQueue
     let appState: AppState
 
@@ -10,11 +9,6 @@ struct AppCommands: Commands {
     private var player: PlayerController { appState.player }
 
     var body: some Commands {
-        CommandGroup(after: .appInfo) {
-            Button("Check for Updates…") { updater.checkForUpdates() }
-                .disabled(!updater.canCheckForUpdates)
-        }
-
         CommandGroup(replacing: .newItem) {
             Button("Add Videos…") { queue.openPanel() }
                 .keyboardShortcut("o")

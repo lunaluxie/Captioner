@@ -1,17 +1,6 @@
 import Foundation
 import Observation
 
-nonisolated enum ExportLocation: String, Codable, CaseIterable, Sendable {
-    case nextToOriginal, folder
-
-    var title: String {
-        switch self {
-        case .nextToOriginal: "Next to the original"
-        case .folder: "A folder you choose"
-        }
-    }
-}
-
 /// App-wide preferences, backed by UserDefaults. New videos start from these; each video in
 /// the queue then keeps its own copy of the style, placement and controls.
 @Observable
@@ -38,11 +27,9 @@ final class AppSettings {
     var exportCodec: ExportCodec {
         didSet { defaults.set(exportCodec.rawValue, forKey: "exportCodec") }
     }
-    var exportLocation: ExportLocation {
-        didSet { defaults.set(exportLocation.rawValue, forKey: "exportLocation") }
-    }
-    var exportFolderPath: String? {
-        didSet { defaults.set(exportFolderPath, forKey: "exportFolderPath") }
+    /// Security-scoped bookmark of the folder exports are written to.
+    var exportFolderBookmark: Data? {
+        didSet { defaults.set(exportFolderBookmark, forKey: "exportFolderBookmark") }
     }
     /// How long a caption stays up after its last word when nothing follows.
     var captionHold: Double {
@@ -59,17 +46,28 @@ final class AppSettings {
         placement = Self.load(PlacementSettings.self, key: "placement", from: defaults) ?? .default
         favoriteStyleIDs = Set(defaults.stringArray(forKey: "favoriteStyleIDs") ?? [])
         exportCodec = ExportCodec(rawValue: defaults.string(forKey: "exportCodec") ?? "") ?? .h264
-        exportLocation = ExportLocation(rawValue: defaults.string(forKey: "exportLocation") ?? "") ?? .nextToOriginal
-        exportFolderPath = defaults.string(forKey: "exportFolderPath")
+        exportFolderBookmark = defaults.data(forKey: "exportFolderBookmark")
         captionHold = defaults.object(forKey: "captionHold") as? Double ?? 1.0
         revealOutputInFinder = defaults.object(forKey: "revealOutputInFinder") as? Bool ?? true
     }
 
     var locale: Locale { Locale(identifier: localeIdentifier) }
 
+    /// The chosen export folder, or nil when none has been picked yet (or the bookmark went stale).
     var exportFolder: URL? {
-        guard exportLocation == .folder, let exportFolderPath else { return nil }
-        return URL(fileURLWithPath: exportFolderPath, isDirectory: true)
+        guard let bookmark = exportFolderBookmark else { return nil }
+        var stale = false
+        guard let url = try? URL(resolvingBookmarkData: bookmark, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &stale) else {
+            return nil
+        }
+        if stale, let fresh = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
+            exportFolderBookmark = fresh
+        }
+        return url
+    }
+
+    func setExportFolder(_ url: URL) {
+        exportFolderBookmark = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
     }
 
     private func store<T: Encodable>(_ value: T, key: String) {

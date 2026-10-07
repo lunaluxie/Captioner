@@ -106,6 +106,7 @@ final class CaptionQueue {
     // MARK: - Export
 
     func export(_ ids: [CaptionItem.ID]) {
+        guard ensureExportFolder() else { return }
         for id in ids where !exportPending.contains(id) && exportingItem?.id != id {
             if let item = items.first(where: { $0.id == id }), item.hasCaptions, !item.status.isBusy {
                 exportPending.append(id)
@@ -116,6 +117,21 @@ final class CaptionQueue {
 
     func exportAll() {
         export(items.filter { $0.hasCaptions && !$0.status.isBusy }.map(\.id))
+    }
+
+    /// The sandbox only lets the app write where the user pointed it, so the first export asks
+    /// for a folder; it is kept as a security-scoped bookmark and can be changed in Settings.
+    private func ensureExportFolder() -> Bool {
+        if settings.exportFolder != nil { return true }
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Use Folder"
+        panel.message = "Choose where Captioner saves exported videos. You can change this in Settings."
+        guard panel.runModal() == .OK, let url = panel.url else { return false }
+        settings.setExportFolder(url)
+        return true
     }
 
     func cancelExport() {
@@ -146,10 +162,17 @@ final class CaptionQueue {
         exportingItem = item
         item.status = .exporting
         item.exportProgress = 0
-        let output = VideoExporter.outputURL(for: item.url, in: settings.exportFolder)
+        guard let folder = settings.exportFolder else {
+            exportingItem = nil
+            item.status = .ready
+            return
+        }
+        let accessing = folder.startAccessingSecurityScopedResource()
+        let output = VideoExporter.outputURL(for: item.url, in: folder)
         let codec = settings.exportCodec
         let started = Date()
         exportTask = Task {
+            defer { if accessing { folder.stopAccessingSecurityScopedResource() } }
             do {
                 try await VideoExporter.export(asset: item.asset, composition: composition, to: output, codec: codec) { fraction in
                     Task { @MainActor in item.exportProgress = fraction }

@@ -71,7 +71,18 @@ video file with the captions burned in.
   `app-store`; the branch only differs in the project settings, entitlements, updater and export
   location.
 
-## Releases and updates
+## This branch: Mac App Store
+
+`app-store` is the sandboxed build: no Sparkle, `Captioner.entitlements` grants
+`app-sandbox`, `files.user-selected.read-write` and `files.bookmarks.app-scope`. Dropped and
+opened videos are readable through the sandbox's user-selected access; exports can only go to a
+folder the user picks, kept as a security-scoped bookmark (`AppSettings.exportFolderBookmark`),
+asked for on the first export and changeable in Settings. Merge `main` into this branch and
+resolve the handful of files that differ: the project file, entitlements, `Info.plist`,
+`CaptionerApp`, `AppCommands`, `SettingsView`, `AppSettings`, `CaptionQueue`. Archive and upload
+with Xcode when Stephen asks for it.
+
+## Releases and updates (main branch)
 
 Updates ship through Sparkle (SPM, 2.6+). The feed is
 `https://beardfm.app/captioner/appcast.xml`, kept in the beardfm.app site repo at

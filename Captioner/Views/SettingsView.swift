@@ -3,12 +3,10 @@ import SwiftUI
 
 struct SettingsView: View {
     @Bindable private var settings = AppSettings.shared
-    @Environment(AppUpdater.self) private var updater
     @State private var fontLibrary = FontLibrary.shared
     @State private var supportedLocales: [Locale] = []
 
     var body: some View {
-        @Bindable var updater = updater
         Form {
             Section("New Videos") {
                 Picker("Spoken language", selection: $settings.localeIdentifier) {
@@ -28,18 +26,13 @@ struct SettingsView: View {
             }
 
             Section("Export") {
-                Picker("Save exports", selection: $settings.exportLocation) {
-                    ForEach(ExportLocation.allCases, id: \.self) { Text($0.title).tag($0) }
-                }
-                if settings.exportLocation == .folder {
-                    LabeledContent("Folder") {
-                        HStack {
-                            Text(settings.exportFolderPath.map { ($0 as NSString).abbreviatingWithTildeInPath } ?? "Not chosen")
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Button("Choose…") { chooseFolder() }
-                        }
+                LabeledContent("Save exports in") {
+                    HStack {
+                        Text(settings.exportFolder.map { ($0.path as NSString).abbreviatingWithTildeInPath } ?? "Ask when exporting")
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Button("Choose…") { chooseFolder() }
                     }
                 }
                 Picker("Video codec", selection: $settings.exportCodec) {
@@ -54,7 +47,7 @@ struct SettingsView: View {
                             .frame(width: 52, alignment: .trailing)
                     }
                 }
-                Text("Exports keep the original resolution, frame rate and audio, and are named “<name> Captioned.mp4”. The hold time is how long a caption stays after its last word when nothing follows it.")
+                Text("Exports keep the original resolution, frame rate and audio, and are named “<name> Captioned.mp4”. Captioner can only write where you let it, so pick a folder once here or when the first export starts. The hold time is how long a caption stays after its last word when nothing follows it.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -78,16 +71,6 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Updates") {
-                Toggle("Check for updates automatically", isOn: $updater.automaticallyChecksForUpdates)
-                HStack {
-                    Button("Check Now…") { updater.checkForUpdates() }
-                        .disabled(!updater.canCheckForUpdates)
-                    Spacer()
-                    Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
-                        .foregroundStyle(.secondary)
-                }
-            }
         }
         .formStyle(.grouped)
         .frame(width: 540)
@@ -105,7 +88,7 @@ struct SettingsView: View {
         panel.canCreateDirectories = true
         panel.message = "Choose where exported videos are saved."
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        settings.exportFolderPath = url.path
+        settings.setExportFolder(url)
     }
 
     private func addFont() {
