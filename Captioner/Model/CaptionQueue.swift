@@ -106,9 +106,11 @@ final class CaptionQueue {
     // MARK: - Export
 
     func export(_ ids: [CaptionItem.ID]) {
-        guard ensureExportFolder() else { return }
         for id in ids where !exportPending.contains(id) && exportingItem?.id != id {
             if let item = items.first(where: { $0.id == id }), item.hasCaptions, !item.status.isBusy {
+                // The sandbox only lets the app write where the user pointed it, so make sure
+                // the destination is allowed before queueing; a cancelled panel skips the video.
+                guard exportFolder(for: item) != nil else { continue }
                 exportPending.append(id)
             }
         }
@@ -117,21 +119,6 @@ final class CaptionQueue {
 
     func exportAll() {
         export(items.filter { $0.hasCaptions && !$0.status.isBusy }.map(\.id))
-    }
-
-    /// The sandbox only lets the app write where the user pointed it, so the first export asks
-    /// for a folder; it is kept as a security-scoped bookmark and can be changed in Settings.
-    private func ensureExportFolder() -> Bool {
-        if settings.exportFolder != nil { return true }
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.prompt = "Use Folder"
-        panel.message = "Choose where Captioner saves exported videos. You can change this in Settings."
-        guard panel.runModal() == .OK, let url = panel.url else { return false }
-        settings.setExportFolder(url)
-        return true
     }
 
     func cancelExport() {
@@ -143,6 +130,39 @@ final class CaptionQueue {
             item.exportProgress = 0
         }
         exportingItem = nil
+    }
+
+    /// Where `item` exports to, asking the user for access the first time a folder is needed.
+    /// "Next to the original" needs one grant per folder; "a folder you choose" needs one folder.
+    private func exportFolder(for item: CaptionItem) -> URL? {
+        switch settings.exportLocation {
+        case .folder:
+            if let folder = settings.exportFolder { return folder }
+            guard let picked = askForFolder(startingAt: nil, message: "Choose where Captioner saves exported videos. You can change this in Settings.", prompt: "Use Folder") else { return nil }
+            settings.setExportFolder(picked)
+            return picked
+        case .nextToOriginal:
+            let original = item.url.deletingLastPathComponent()
+            if let granted = settings.grantedFolder(containing: item.url) { return granted }
+            guard let picked = askForFolder(startingAt: original,
+                                            message: "Captioner needs your permission to save “\(item.name) Captioned.mp4” next to the original. Click Allow to use this folder.",
+                                            prompt: "Allow") else { return nil }
+            settings.grantFolder(picked)
+            return picked
+        }
+    }
+
+    private func askForFolder(startingAt directory: URL?, message: String, prompt: String) -> URL? {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = directory
+        panel.prompt = prompt
+        panel.message = message
+        guard panel.runModal() == .OK, let url = panel.url else { return nil }
+        return url
     }
 
     private func pumpExport() {
@@ -162,9 +182,10 @@ final class CaptionQueue {
         exportingItem = item
         item.status = .exporting
         item.exportProgress = 0
-        guard let folder = settings.exportFolder else {
+        guard let folder = exportFolder(for: item) else {
             exportingItem = nil
             item.status = .ready
+            pumpExport()
             return
         }
         let accessing = folder.startAccessingSecurityScopedResource()

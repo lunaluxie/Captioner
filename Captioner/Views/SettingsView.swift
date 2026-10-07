@@ -26,13 +26,26 @@ struct SettingsView: View {
             }
 
             Section("Export") {
-                LabeledContent("Save exports in") {
-                    HStack {
-                        Text(settings.exportFolder.map { ($0.path as NSString).abbreviatingWithTildeInPath } ?? "Ask when exporting")
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        Button("Choose…") { chooseFolder() }
+                Picker("Save exports", selection: $settings.exportLocation) {
+                    ForEach(ExportLocation.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                if settings.exportLocation == .folder {
+                    LabeledContent("Folder") {
+                        HStack {
+                            Text(settings.exportFolder.map { ($0.path as NSString).abbreviatingWithTildeInPath } ?? "Ask when exporting")
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Button("Choose…") { chooseFolder() }
+                        }
+                    }
+                } else if !settings.folderGrants.isEmpty {
+                    LabeledContent("Allowed folders") {
+                        HStack {
+                            Text("\(settings.folderGrants.count)")
+                                .foregroundStyle(.secondary)
+                            Button("Forget") { settings.forgetFolderGrants() }
+                        }
                     }
                 }
                 Picker("Video codec", selection: $settings.exportCodec) {
@@ -47,7 +60,7 @@ struct SettingsView: View {
                             .frame(width: 52, alignment: .trailing)
                     }
                 }
-                Text("Exports keep the original resolution, frame rate and audio, and are named “<name> Captioned.mp4”. Captioner can only write where you let it, so pick a folder once here or when the first export starts. The hold time is how long a caption stays after its last word when nothing follows it.")
+                Text("Exports keep the original resolution, frame rate and audio, and are named “<name> Captioned.mp4”. Captioner can only write where you let it: the first export into a folder asks you to allow it once. The hold time is how long a caption stays after its last word when nothing follows it.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
