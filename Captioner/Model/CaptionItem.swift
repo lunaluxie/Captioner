@@ -67,6 +67,10 @@ final class CaptionItem: Identifiable {
     }
     /// Set once the captions have been edited, so a style change stops regrouping them.
     var hasEdits = false
+    /// Present while the captions are a translation of the original speech.
+    var translation: TranslationInfo?
+    var isTranslating = false
+    var translationError: String?
     var exportProgress: Double = 0
     var exportedURL: URL?
 
@@ -147,6 +151,8 @@ final class CaptionItem: Identifiable {
             Self.log.notice("Transcribed \(self.name, privacy: .public): \(words.count) words in \(Date().timeIntervalSince(started), format: .fixed(precision: 1))s")
             rawWords = words
             hasEdits = false
+            translation = nil
+            translationError = nil
             captions = CaptionBuilder.captions(from: words, grouping: style.grouping)
             status = .ready
             completion()
@@ -180,6 +186,8 @@ final class CaptionItem: Identifiable {
         source = .subtitles(subtitleURL)
         rawWords = words
         hasEdits = false
+        translation = nil
+        translationError = nil
         captions = CaptionBuilder.captions(from: words, grouping: style.grouping)
         status = .ready
     }
@@ -187,6 +195,35 @@ final class CaptionItem: Identifiable {
     func rebuildCaptions() {
         guard !rawWords.isEmpty else { return }
         captions = CaptionBuilder.captions(from: rawWords, grouping: style.grouping)
+        hasEdits = false
+    }
+
+    // MARK: - Translation
+
+    /// The captions a translation starts from: always the original speech, never a translation.
+    var captionsForTranslation: [Caption] {
+        translation?.originalCaptions ?? captions
+    }
+
+    /// Replaces the captions with translated words, keeping the originals to come back to.
+    func applyTranslation(words: [TranscriptWord], targetIdentifier: String) {
+        if translation == nil {
+            translation = TranslationInfo(targetIdentifier: targetIdentifier, originalWords: rawWords, originalCaptions: captions)
+        } else {
+            translation?.targetIdentifier = targetIdentifier
+        }
+        rawWords = words
+        captions = CaptionBuilder.captions(from: words, grouping: style.grouping)
+        hasEdits = false
+        translationError = nil
+    }
+
+    func revertTranslation() {
+        guard let translation else { return }
+        rawWords = translation.originalWords
+        captions = translation.originalCaptions
+        self.translation = nil
+        translationError = nil
         hasEdits = false
     }
 
