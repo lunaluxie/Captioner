@@ -26,6 +26,12 @@ video file with the captions burned in.
 - **Transcription controls**: show punctuation, title case, show curse words. They apply when
   captions are drawn, so toggling them never loses an edit. With curse words hidden the engine's
   own etiquette replacements are requested as well, so generating again restores the words.
+- **Translate to**: after captions exist, pick a target language and Apple's on-device
+  translation (the Translation framework) rewrites them. Captions are sent as whole sentences
+  (cut at sentence punctuation and pauses), and each translated sentence is shared back over the
+  captions it came from in proportion to their text, so timing and pauses follow the original
+  speech. Chinese, Japanese and Thai are split into words with `NLTokenizer`. The original words
+  are kept; choosing "Original" restores them, and generating again clears the translation.
 - **Generate from**: the video's audio (default) or an SRT / WebVTT file. Subtitle cues are
   split into words timed by length and regrouped to the style.
 - **Editing**: the caption list beside the preview. Click a time to jump there, edit text in
@@ -51,6 +57,10 @@ video file with the captions burned in.
   that orients the source frame with Core Image, renders the caption region to a small image
   (cached until the active word changes) and composites it. The same `AVVideoComposition` feeds
   the preview's `AVPlayerItem` and the `AVAssetExportSession`.
+- Translation needs a `TranslationSession`, which only SwiftUI hands out: `AppState.translate`
+  stores a request and `MainView`'s `.translationTask` runs it (and shows Apple's language
+  download sheet when a pack is missing). `CaptionTranslator` does the sentence grouping and
+  the redistribution onto the timeline.
 - `CaptionOverlay` is the thread-safe handoff: the main thread writes a `RenderSnapshot`
   (captions, style, placement, text options) and the compositor reads it per frame. A paused
   preview is repainted by giving the player item a new composition object.
@@ -62,7 +72,8 @@ video file with the captions burned in.
 - Debug-only helpers for working without a screen: `CAPTIONER_SNAPSHOT=/path.png` (with
   `CAPTIONER_SNAPSHOT_DELAY` seconds) writes a picture of the window plus a `.tree.txt` view
   dump; `CAPTIONER_DEBUG_AUTOEXPORT=1` exports each video as soon as its captions are ready (`2` exports
-  it twice); `CAPTIONER_DEBUG_OPEN=/a.mp4:/b.mp4` adds videos at launch. When testing from a shell
+  it twice); `CAPTIONER_DEBUG_OPEN=/a.mp4:/b.mp4` adds videos at launch; `CAPTIONER_DEBUG_TRANSLATE=es`
+  translates each video once its captions are ready. When testing from a shell
   while the app is also running from Xcode, kill only your own PID, never `pkill -x Captioner`.
   Set `exportLocation` / `exportFolderPath` with `defaults write fm.beard.Captioner …` to keep
   test exports out of the source folder.
@@ -106,3 +117,7 @@ always-latest link). The EdDSA signing key is in the login keychain under the Sp
 2. `Tools/release.sh` builds, signs and packages `dist/Captioner <version>.dmg`.
    Add `--notarize` to notarize, and `--notarize --upload` to also sign the update, copy it into
    beardfm.app, add it to the appcast and deploy the site. Commit the beardfm.app changes afterwards.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

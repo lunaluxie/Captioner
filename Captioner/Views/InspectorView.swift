@@ -1,5 +1,6 @@
 import Speech
 import SwiftUI
+import Translation
 import UniformTypeIdentifiers
 
 /// Caption settings for the selected video. Changes also become the defaults for new videos.
@@ -7,7 +8,6 @@ struct InspectorView: View {
     @Bindable var item: CaptionItem
     @Environment(CaptionQueue.self) private var queue
     @Environment(AppState.self) private var appState
-    @State private var supportedLocales: [Locale] = []
     @State private var confirmRegenerate = false
     @State private var showPositionFor: FrameOrientation?
 
@@ -21,10 +21,6 @@ struct InspectorView: View {
             controlsSection
         }
         .formStyle(.grouped)
-        .task {
-            let supported = await SpeechTranscriber.supportedLocales
-            supportedLocales = supported.sorted { TranscriptionEngine.languageName($0) < TranscriptionEngine.languageName($1) }
-        }
         .onChange(of: item.placement) { _, placement in settings.placement = placement }
         .onChange(of: item.textOptions) { _, options in settings.textOptions = options }
         .onChange(of: item.localeIdentifier) { _, identifier in
@@ -59,14 +55,8 @@ struct InspectorView: View {
                 }
                 .fixedSize()
             }
-            Picker("Spoken language", selection: $item.localeIdentifier) {
-                if !supportedLocales.contains(where: { $0.identifier == item.localeIdentifier }) {
-                    Text(TranscriptionEngine.languageName(item.locale)).tag(item.localeIdentifier)
-                }
-                ForEach(supportedLocales, id: \.identifier) { locale in
-                    Text(TranscriptionEngine.languageName(locale)).tag(locale.identifier)
-                }
-            }
+            LanguagePicker(selection: $item.localeIdentifier, label: "Spoken language")
+            translateRow
             HStack {
                 if item.isTranscribing {
                     ProgressView()
@@ -83,6 +73,52 @@ struct InspectorView: View {
                     }
                     .disabled(item.status == .loading || item.status == .exporting)
                 }
+            }
+        }
+    }
+
+    /// Translating swaps the captions for Apple's on-device translation of the speech; picking
+    /// the original language puts them back.
+    private var translateRow: some View {
+        let catalog = TranslationCatalog.shared
+        let source = item.locale.language
+        let selection = Binding<String>(
+            get: { item.translation?.targetIdentifier ?? "" },
+            set: { identifier in
+                if identifier.isEmpty {
+                    item.revertTranslation()
+                } else {
+                    appState.translate(item, to: Locale.Language(identifier: identifier))
+                }
+            })
+        return Group {
+            Picker("Translate to", selection: selection) {
+                Text("Original (\(LanguageCatalog.name(item.locale).components(separatedBy: " (").first ?? ""))").tag("")
+                if let current = item.translation?.targetIdentifier, !catalog.targets(excluding: source).contains(where: { $0.minimalIdentifier == current }) {
+                    Text(TranslationCatalog.name(Locale.Language(identifier: current))).tag(current)
+                }
+                Divider()
+                ForEach(catalog.targets(excluding: source), id: \.minimalIdentifier) { language in
+                    Text(TranslationCatalog.name(language)).tag(language.minimalIdentifier)
+                }
+            }
+            .disabled(!item.hasCaptions || item.isTranscribing || item.isTranslating)
+            .onAppear { catalog.load() }
+            if item.isTranslating {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Translating…")
+                        .foregroundStyle(.secondary)
+                }
+            } else if let error = item.translationError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            } else if item.translation != nil {
+                Text("Translated on this Mac. Timing follows the original speech; edits to the text are kept until you translate again.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }

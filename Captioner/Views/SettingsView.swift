@@ -1,97 +1,106 @@
 import Speech
+import AppKit
 import SwiftUI
 
 struct SettingsView: View {
     @Bindable private var settings = AppSettings.shared
     @State private var fontLibrary = FontLibrary.shared
-    @State private var supportedLocales: [Locale] = []
+
+    /// Tall enough to show a tab without scrolling on a big display, never taller than the screen;
+    /// the form scrolls inside it on small ones.
+    private var windowHeight: CGFloat {
+        let screen = NSScreen.main?.visibleFrame.height ?? 800
+        return min(560, screen - 110)
+    }
 
     var body: some View {
-        Form {
-            Section("New Videos") {
-                Picker("Spoken language", selection: $settings.localeIdentifier) {
-                    if !supportedLocales.contains(where: { $0.identifier == settings.localeIdentifier }) {
-                        Text(TranscriptionEngine.languageName(settings.locale)).tag(settings.localeIdentifier)
+        TabView {
+            Tab("General", systemImage: "gearshape") {
+                Form {
+                    Section("New Videos") {
+                        LanguagePicker(selection: $settings.localeIdentifier, label: "Spoken language")
+                        Toggle("Show punctuation", isOn: $settings.textOptions.showPunctuation)
+                        Toggle("Title case", isOn: $settings.textOptions.titleCase)
+                        Toggle("Show curse words", isOn: $settings.textOptions.showCurseWords)
+                        Text("Speech is recognized on this Mac with Apple's on-device engine; nothing leaves your computer. A language's model downloads the first time you use it. Languages marked “dictation model” use Apple's earlier on-device dictation engine, which covers more languages at lower accuracy. Videos you add start with these settings and the last style you used.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                    ForEach(supportedLocales, id: \.identifier) { locale in
-                        Text(TranscriptionEngine.languageName(locale)).tag(locale.identifier)
+                    Section("About") {
+                        LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")
                     }
                 }
-                Toggle("Show punctuation", isOn: $settings.textOptions.showPunctuation)
-                Toggle("Title case", isOn: $settings.textOptions.titleCase)
-                Toggle("Show curse words", isOn: $settings.textOptions.showCurseWords)
-                Text("Speech is recognized on this Mac with Apple's on-device engine; nothing leaves your computer. A language's model downloads the first time you use it. Videos you add start with these settings and the last style you used.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                .formStyle(.grouped)
             }
-
-            Section("Export") {
-                Picker("Save exports", selection: $settings.exportLocation) {
-                    ForEach(ExportLocation.allCases, id: \.self) { Text($0.title).tag($0) }
-                }
-                if settings.exportLocation == .folder {
-                    LabeledContent("Folder") {
-                        HStack {
-                            Text(settings.exportFolder.map { ($0.path as NSString).abbreviatingWithTildeInPath } ?? "Ask when exporting")
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Button("Choose…") { chooseFolder() }
+            Tab("Export", systemImage: "square.and.arrow.up") {
+                Form {
+                    Section("Export") {
+                        Picker("Save exports", selection: $settings.exportLocation) {
+                            ForEach(ExportLocation.allCases, id: \.self) { Text($0.title).tag($0) }
                         }
-                    }
-                } else if !settings.folderGrants.isEmpty {
-                    LabeledContent("Allowed folders") {
-                        HStack {
-                            Text("\(settings.folderGrants.count)")
-                                .foregroundStyle(.secondary)
-                            Button("Forget") { settings.forgetFolderGrants() }
+                        if settings.exportLocation == .folder {
+                            LabeledContent("Folder") {
+                                HStack {
+                                    Text(settings.exportFolder.map { ($0.path as NSString).abbreviatingWithTildeInPath } ?? "Ask when exporting")
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                    Button("Choose…") { chooseFolder() }
+                                }
+                            }
+                        } else if !settings.folderGrants.isEmpty {
+                            LabeledContent("Allowed folders") {
+                                HStack {
+                                    Text("\(settings.folderGrants.count)")
+                                        .foregroundStyle(.secondary)
+                                    Button("Forget") { settings.forgetFolderGrants() }
+                                }
+                            }
                         }
+                        Picker("Video codec", selection: $settings.exportCodec) {
+                            ForEach(ExportCodec.allCases, id: \.self) { Text($0.title).tag($0) }
+                        }
+                        Toggle("Show exported files in the Finder", isOn: $settings.revealOutputInFinder)
+                        LabeledContent("Keep a caption up for") {
+                            HStack {
+                                Slider(value: $settings.captionHold, in: 0...3, step: 0.25)
+                                Text(String(format: "%.2f s", settings.captionHold))
+                                    .monospacedDigit()
+                                    .frame(width: 52, alignment: .trailing)
+                            }
+                        }
+                        Text("Exports keep the original resolution, frame rate and audio, and are named “<name> Captioned.mp4”. Captioner can only write where you let it: the first export into a folder asks you to allow it once. The hold time is how long a caption stays after its last word when nothing follows it.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
-                Picker("Video codec", selection: $settings.exportCodec) {
-                    ForEach(ExportCodec.allCases, id: \.self) { Text($0.title).tag($0) }
-                }
-                Toggle("Show exported files in the Finder", isOn: $settings.revealOutputInFinder)
-                LabeledContent("Keep a caption up for") {
-                    HStack {
-                        Slider(value: $settings.captionHold, in: 0...3, step: 0.25)
-                        Text(String(format: "%.2f s", settings.captionHold))
-                            .monospacedDigit()
-                            .frame(width: 52, alignment: .trailing)
-                    }
-                }
-                Text("Exports keep the original resolution, frame rate and audio, and are named “<name> Captioned.mp4”. Captioner can only write where you let it: the first export into a folder asks you to allow it once. The hold time is how long a caption stays after its last word when nothing follows it.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                .formStyle(.grouped)
             }
-
-            Section("Fonts") {
-                if fontLibrary.customFonts.isEmpty {
-                    Text("No font files added yet.")
-                        .foregroundStyle(.secondary)
-                }
-                ForEach(fontLibrary.customFonts) { font in
-                    HStack {
-                        Text(font.displayName)
-                        Spacer()
-                        Button("Remove") { fontLibrary.remove(font) }
-                            .controlSize(.small)
+            Tab("Fonts", systemImage: "textformat") {
+                Form {
+                    Section("Fonts") {
+                        if fontLibrary.customFonts.isEmpty {
+                            Text("No font files added yet.")
+                                .foregroundStyle(.secondary)
+                        }
+                        ForEach(fontLibrary.customFonts) { font in
+                            HStack {
+                                Text(font.displayName)
+                                Spacer()
+                                Button("Remove") { fontLibrary.remove(font) }
+                                    .controlSize(.small)
+                            }
+                        }
+                        Button("Add Font File…") { addFont() }
+                        Text("TrueType and OpenType files are copied into Captioner and appear in the inspector's font menu.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
-                Button("Add Font File…") { addFont() }
-                Text("TrueType and OpenType files are copied into Captioner and appear in the inspector's font menu.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                .formStyle(.grouped)
             }
-
         }
-        .formStyle(.grouped)
-        .frame(width: 540)
-        .fixedSize(horizontal: false, vertical: true)
-        .task {
-            let supported = await SpeechTranscriber.supportedLocales
-            supportedLocales = supported.sorted { TranscriptionEngine.languageName($0) < TranscriptionEngine.languageName($1) }
-        }
+        .frame(width: 540, height: windowHeight)
     }
 
     private func chooseFolder() {
