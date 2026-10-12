@@ -61,6 +61,10 @@ final class AppSettings {
     var revealOutputInFinder: Bool {
         didSet { defaults.set(revealOutputInFinder, forKey: "revealOutputInFinder") }
     }
+    /// iPhone and iPad: add each export to the Photos library as well as keeping it in the app.
+    var saveToPhotos: Bool {
+        didSet { defaults.set(saveToPhotos, forKey: "saveToPhotos") }
+    }
 
     private init() {
         localeIdentifier = LanguageCatalog.normalized(defaults.string(forKey: "localeIdentifier") ?? Locale.current.identifier)
@@ -75,6 +79,7 @@ final class AppSettings {
         folderGrants = defaults.dictionary(forKey: "folderGrants") as? [String: Data] ?? [:]
         captionHold = defaults.object(forKey: "captionHold") as? Double ?? 1.0
         revealOutputInFinder = defaults.object(forKey: "revealOutputInFinder") as? Bool ?? true
+        saveToPhotos = defaults.object(forKey: "saveToPhotos") as? Bool ?? true
     }
 
     var locale: Locale { Locale(identifier: localeIdentifier) }
@@ -134,6 +139,8 @@ final class AppSettings {
 
     /// The chosen export folder, or nil when none has been picked yet (or the bookmark went stale).
     var exportFolder: URL? {
+        #if os(macOS)
+        guard exportLocation == .folder else { return nil }
         guard let bookmark = exportFolderBookmark else { return nil }
         var stale = false
         guard let url = try? URL(resolvingBookmarkData: bookmark, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &stale) else {
@@ -143,8 +150,14 @@ final class AppSettings {
             exportFolderBookmark = fresh
         }
         return url
+        #else
+        let folder = URL.documentsDirectory.appending(path: "Exports", directoryHint: .isDirectory)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
+        #endif
     }
 
+    #if os(macOS)
     func setExportFolder(_ url: URL) {
         exportFolderBookmark = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
     }
@@ -172,6 +185,7 @@ final class AppSettings {
     func forgetFolderGrants() {
         folderGrants = [:]
     }
+    #endif
 
     private func store<T: Encodable>(_ value: T, key: String) {
         if let data = try? JSONEncoder().encode(value) {

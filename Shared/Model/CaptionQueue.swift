@@ -1,4 +1,6 @@
+#if canImport(AppKit)
 import AppKit
+#endif
 import Foundation
 import Observation
 import os
@@ -183,6 +185,10 @@ final class CaptionQueue {
     /// Where `item` exports to, asking the user for access the first time a folder is needed.
     /// "Next to the original" needs one grant per folder; "a folder you choose" needs one folder.
     private func exportFolder(for item: CaptionItem) -> URL? {
+        #if !os(macOS)
+        // iPhone and iPad: exports always go to the app's own Exports folder.
+        return settings.exportFolder
+        #else
         switch settings.exportLocation {
         case .folder:
             if let folder = settings.exportFolder { return folder }
@@ -198,8 +204,10 @@ final class CaptionQueue {
             settings.grantFolder(picked)
             return picked
         }
+        #endif
     }
 
+    #if os(macOS)
     private func askForFolder(startingAt directory: URL?, message: String, prompt: String) -> URL? {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -212,13 +220,16 @@ final class CaptionQueue {
         guard panel.runModal() == .OK, let url = panel.url else { return nil }
         return url
     }
+    #endif
 
     private func pumpExport() {
         guard exportingItem == nil else { return }
         guard !exportPending.isEmpty else {
+            #if os(macOS)
             if !batchOutputs.isEmpty, settings.revealOutputInFinder {
                 NSWorkspace.shared.activateFileViewerSelecting(batchOutputs)
             }
+            #endif
             batchOutputs = []
             return
         }
@@ -270,6 +281,7 @@ final class CaptionQueue {
 
     // MARK: - Panels
 
+    #if os(macOS)
     func openPanel() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
@@ -278,5 +290,21 @@ final class CaptionQueue {
         panel.message = "Choose one or more videos to caption."
         guard panel.runModal() == .OK else { return }
         add(panel.urls)
+    }
+    #endif
+}
+
+/// Why a queued video couldn't be finished on someone's behalf (watched folders on the Mac).
+nonisolated enum WatchError: LocalizedError {
+    case notAVideo
+    case removed
+    case failed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .notAVideo: "This isn't a video Captioner can open."
+        case .removed: "The video was removed from the queue before it finished."
+        case .failed(let message): message
+        }
     }
 }

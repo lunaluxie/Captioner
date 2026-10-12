@@ -1,4 +1,8 @@
+#if canImport(AppKit)
 import AppKit
+#else
+import UIKit
+#endif
 import CoreText
 import Foundation
 import Observation
@@ -30,7 +34,11 @@ final class FontLibrary {
     private init() {
         try? FileManager.default.createDirectory(at: Self.directory, withIntermediateDirectories: true)
         reload()
+        #if os(macOS)
         installedFamilies = NSFontManager.shared.availableFontFamilies.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        #else
+        installedFamilies = UIFont.familyNames.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        #endif
     }
 
     func reload() {
@@ -53,6 +61,8 @@ final class FontLibrary {
         if FileManager.default.fileExists(atPath: destination.path) {
             try FileManager.default.removeItem(at: destination)
         }
+        let scoped = source.startAccessingSecurityScopedResource()
+        defer { if scoped { source.stopAccessingSecurityScopedResource() } }
         try FileManager.default.copyItem(at: source, to: destination)
         Self.register(destination)
         FontResolver.clearCache()
@@ -123,16 +133,28 @@ nonisolated enum FontResolver {
             let descriptor = CTFontDescriptorCreateWithAttributes(attributes as CFDictionary)
             var font = CTFontCreateCopyWithAttributes(base, size, nil, descriptor)
             if design != .sansSerif {
+                #if canImport(AppKit)
                 let designName: NSFontDescriptor.SystemDesign = switch design {
                 case .rounded: .rounded
                 case .serif: .serif
                 case .monospaced: .monospaced
                 case .sansSerif: .default
                 }
-                let nsDescriptor = (font as NSFont).fontDescriptor.withDesign(designName) ?? (font as NSFont).fontDescriptor
-                if let designed = NSFont(descriptor: nsDescriptor, size: size) {
+                let descriptor = (font as NSFont).fontDescriptor.withDesign(designName) ?? (font as NSFont).fontDescriptor
+                if let designed = NSFont(descriptor: descriptor, size: size) {
                     font = designed as CTFont
                 }
+                #else
+                let designName: UIFontDescriptor.SystemDesign = switch design {
+                case .rounded: .rounded
+                case .serif: .serif
+                case .monospaced: .monospaced
+                case .sansSerif: .default
+                }
+                if let descriptor = (font as UIFont).fontDescriptor.withDesign(designName) {
+                    font = UIFont(descriptor: descriptor, size: size) as CTFont
+                }
+                #endif
             }
             attributes.removeAll()
             return font
