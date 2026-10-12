@@ -32,6 +32,14 @@ struct CaptionerApp: App {
 
 /// Receives videos opened from the Finder, the Dock icon, or `open -a Captioner file.mp4`.
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var launchedAtLogin = false
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        launchedAtLogin = LoginItem.launchEventIsLoginItem
+        Notifier.install()
+        FolderWatcher.shared.configure(accepts: WatchProcessor.accepts, process: WatchProcessor.caption)
+    }
+
     func application(_ application: NSApplication, open urls: [URL]) {
         CaptionQueue.shared.add(urls)
         NSApp.activate()
@@ -41,7 +49,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         true
     }
 
+    /// Closing the window quits, unless folders are being watched.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        !FolderWatcher.shared.isWatching && CaptionQueue.shared.items.isEmpty
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if LoginItem.launchEventIsLoginItem { launchedAtLogin = true }
+        if launchedAtLogin {
+            // Started by the system at login to watch folders: stay out of the way.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                for window in NSApp.windows where window.isVisible { window.close() }
+            }
+        }
         #if DEBUG
         // Development aid: CAPTIONER_DEBUG_OPEN=/path/a.mp4:/path/b.mp4 adds videos at launch without the Finder.
         if let list = ProcessInfo.processInfo.environment["CAPTIONER_DEBUG_OPEN"] {

@@ -67,6 +67,8 @@ final class CaptionItem: Identifiable {
     }
     /// Set once the captions have been edited, so a style change stops regrouping them.
     var hasEdits = false
+    /// Arrived through a watched folder: handled without the Finder popping up.
+    var isFromWatchedFolder = false
     /// Present while the captions are a translation of the original speech.
     var translation: TranslationInfo?
     var isTranslating = false

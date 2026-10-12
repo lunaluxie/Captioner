@@ -57,6 +57,52 @@ final class CaptionQueue {
         }
     }
 
+    // MARK: - Watched folders
+
+    /// Adds a video from a watched folder, or returns the queue's existing item for it.
+    func addFromWatchedFolder(_ url: URL) -> CaptionItem? {
+        if let existing = items.first(where: { $0.url == url }) { return existing }
+        add([url])
+        guard let item = items.first(where: { $0.url == url }) else { return nil }
+        item.isFromWatchedFolder = true
+        return item
+    }
+
+    /// Returns once `item` has captions; throws if it failed or was removed.
+    func waitForCaptions(of item: CaptionItem) async throws {
+        while true {
+            guard items.contains(where: { $0 === item }) else { throw WatchError.removed }
+            switch item.status {
+            case .ready, .exported, .exporting: return
+            case .failed(let message): throw WatchError.failed(message)
+            case .waiting where item.source == .video && !item.isTranscribing && !item.hasCaptions:
+                pumpTranscription()
+            default: break
+            }
+            try await Task.sleep(for: .milliseconds(300))
+        }
+    }
+
+    /// Exports `item` and returns the file once it is written.
+    func exportAndWait(_ item: CaptionItem) async throws -> URL {
+        item.exportedURL = nil
+        export([item.id])
+        while true {
+            guard items.contains(where: { $0 === item }) else { throw WatchError.removed }
+            switch item.status {
+            case .exported:
+                if let url = item.exportedURL { return url }
+            case .failed(let message):
+                throw WatchError.failed(message)
+            case .ready where !exportPending.contains(item.id) && exportingItem !== item:
+                throw CancellationError()
+            default:
+                break
+            }
+            try await Task.sleep(for: .milliseconds(300))
+        }
+    }
+
     func remove(_ ids: Set<CaptionItem.ID>) {
         for item in items where ids.contains(item.id) {
             item.cancelTranscription()
@@ -202,7 +248,8 @@ final class CaptionQueue {
                 }
                 item.exportedURL = output
                 item.status = .exported
-                batchOutputs.append(output)
+                // Watched-folder results announce themselves with a notification, not the Finder.
+                if !item.isFromWatchedFolder { batchOutputs.append(output) }
                 CaptionItem.log.notice("Exported \(item.name, privacy: .public) in \(Date().timeIntervalSince(started), format: .fixed(precision: 1))s")
             } catch is CancellationError {
                 item.status = .ready
