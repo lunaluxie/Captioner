@@ -39,6 +39,11 @@ video file with the captions burned in.
   with the next caption or delete. "Rebuild from Transcript" regroups from the original words.
 - The preview plays the video through the same compositor the export uses, so what you see is
   what you get. ⌥Space plays and pauses, ⌥⌘← / ⌥⌘→ skip 5 s.
+- **Watched folders** (Settings › Watched Folders): every video that arrives in a watched folder
+  is added to the queue, captioned with the default style, position and controls, and exported
+  with the Export settings, then announced with a notification. Files already in the folder when
+  it is added are ignored; a new file is picked up once its size has stopped changing. Captioner's
+  own "… Captioned" outputs are skipped. Open at Login starts the app without a window.
 - **Export** (⌘E, or ⇧⌘E for every video) writes `<name> Captioned.mp4` next to the original
   or into a folder chosen in Settings, at the source resolution and frame rate with the audio
   passed through. H.264 by default, HEVC optional. Rotated iPhone footage is composited upright.
@@ -61,6 +66,10 @@ video file with the captions burned in.
   stores a request and `MainView`'s `.translationTask` runs it (and shows Apple's language
   download sheet when a pack is missing). `CaptionTranslator` does the sentence grouping and
   the redistribution onto the timeline.
+- `FolderWatcher`, `Notifier` and `LoginItem` are shared with Transcriber (keep them in sync);
+  `WatchProcessor` is Captioner's side: add to the queue, `waitForCaptions`, `exportAndWait`.
+  Watched folders keep a security-scoped bookmark so the sandboxed build can read them after a
+  relaunch. `CAPTIONER_DEBUG_WATCH=/folder` watches a folder for one run without saving it.
 - `CaptionOverlay` is the thread-safe handoff: the main thread writes a `RenderSnapshot`
   (captions, style, placement, text options) and the compositor reads it per frame. A paused
   preview is repainted by giving the player item a new composition object.

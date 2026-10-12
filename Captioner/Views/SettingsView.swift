@@ -77,6 +77,12 @@ struct SettingsView: View {
                 }
                 .formStyle(.grouped)
             }
+            Tab("Watched Folders", systemImage: "folder.badge.gearshape") {
+                Form {
+                    WatchedFoldersSettings()
+                }
+                .formStyle(.grouped)
+            }
             Tab("Fonts", systemImage: "textformat") {
                 Form {
                     Section("Fonts") {
