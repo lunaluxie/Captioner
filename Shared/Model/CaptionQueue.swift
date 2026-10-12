@@ -242,3 +242,18 @@ final class CaptionQueue {
     }
     #endif
 }
+
+/// Why a queued video couldn't be finished on someone's behalf (watched folders on the Mac).
+nonisolated enum WatchError: LocalizedError {
+    case notAVideo
+    case removed
+    case failed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .notAVideo: "This isn't a video Captioner can open."
+        case .removed: "The video was removed from the queue before it finished."
+        case .failed(let message): message
+        }
+    }
+}

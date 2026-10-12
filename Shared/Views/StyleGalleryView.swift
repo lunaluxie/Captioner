@@ -57,7 +57,11 @@ struct StyleGalleryView: View {
                 Text("All").tag(Tab.all)
                 Text("Monoline").tag(Tab.monoline)
                 Text("Multiline").tag(Tab.multiline)
+                #if os(macOS)
                 Text("Single Word").tag(Tab.singleWord)
+                #else
+                Text("One Word").tag(Tab.singleWord)
+                #endif
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -86,7 +90,7 @@ struct StyleGalleryView: View {
 
             Divider()
             HStack {
-                Text("Pick a style, then fine-tune it in the inspector and save it with the bookmark. The default applies to new videos.")
+                Text(Self.footerText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -120,7 +124,7 @@ struct StyleGalleryView: View {
             Text(title)
                 .font(.headline)
                 .foregroundStyle(.secondary)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 200, maximum: 260), spacing: 14)], spacing: 16) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: Self.tileMinimum, maximum: 260), spacing: 14)], spacing: 16) {
                 ForEach(styles) { style in
                     let isSaved = settings.isSavedStyle(style.id)
                     StyleTile(style: style,
@@ -155,6 +159,16 @@ struct StyleGalleryView: View {
             }
         }
     }
+}
+
+extension StyleGalleryView {
+    #if os(macOS)
+    static let tileMinimum: CGFloat = 200
+    static let footerText = "Pick a style, then fine-tune it in the inspector and save it with the bookmark. The default applies to new videos."
+    #else
+    static let tileMinimum: CGFloat = 150
+    static let footerText = "Pick a style, then fine-tune it in the Style sheet and save it with the bookmark. The default applies to new videos."
+    #endif
 }
 
 struct StyleTile: View {

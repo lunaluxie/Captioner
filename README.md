@@ -49,11 +49,29 @@ video file with the captions burned in.
   passed through. H.264 by default, HEVC optional. Rotated iPhone footage is composited upright.
 - Everything runs locally. The first use of a language downloads Apple's speech model for it.
 
+## iPhone and iPad
+
+The `Captioner iOS` target (`CaptionerMobile/`) is the same engine with an iPhone-first shell:
+a queue list, an editor with the live preview, caption list and a bottom bar for the Style,
+Position and Captions sheets, and Export. Videos come from the Photos picker, the Files picker,
+or "Open in Captioner" and are copied into Documents/Imports; exports land in Documents/Exports
+(visible in the Files app) and are added to Photos unless that is turned off in Settings.
+Watched folders, Open at Login and Sparkle are Mac-only. Translation, saved styles and fonts
+(system designs, installed families, or imported files) work the same way as on the Mac.
+
+The simulator has no on-device speech models, so transcription fails there; the debug hook
+`CAPTIONER_DEBUG_SUBTITLES=/path.srt` (with `CAPTIONER_DEBUG_OPEN`) feeds captions from an SRT
+instead, passed through `simctl launch` as `SIMCTL_CHILD_…` variables. Everything else, including
+export and saving to Photos, runs in the simulator.
+
 ## Project notes
 
-- Xcode 27 project, macOS 26 or later, Swift with approachable concurrency and MainActor default
-  isolation. Sources live in `Captioner/` as a synchronized folder: `Model/` has the engine,
-  renderer, compositor, exporter and queue; `Views/` the SwiftUI.
+- Xcode 27 project, macOS 26 / iOS 26 or later, Swift with approachable concurrency and
+  MainActor default isolation. `Shared/` holds everything both targets compile: the engine,
+  renderer, compositor, exporter, queue, settings, and the reusable SwiftUI (gallery, style
+  editor, caption list, language picker, scrubber). `Captioner/` is the Mac app and its Mac-only
+  model (updater, folder watcher, login item, notifications); `CaptionerMobile/` the iOS app.
+  Platform differences inside `Shared/` are small `#if os(macOS)` blocks.
 - The speech engine (`TranscriptionEngine`, `MediaAudioReader`) is shared with Transcriber;
   keep fixes in sync between the two apps.
 - `CaptionRenderer` draws with Core Text into a Core Graphics context, bottom-left origin.

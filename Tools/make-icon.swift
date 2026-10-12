@@ -138,9 +138,61 @@ func render(size: Int) -> Data {
     return rep.representation(using: .png, properties: [:])!
 }
 
-let output = URL(fileURLWithPath: CommandLine.arguments.dropFirst().first ?? ".")
+/// The iOS icon: the same art filling the whole square, since iOS applies its own corner mask.
+func renderFullBleed(size: Int) -> Data {
+    let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: size, pixelsHigh: size, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+    let context = NSGraphicsContext(bitmapImageRep: rep)!.cgContext
+    // Scale the 824-point tile up to fill the canvas, keeping the glyph centered.
+    let scale = canvas / 824
+    context.scaleBy(x: CGFloat(size) / canvas, y: CGFloat(size) / canvas)
+    context.translateBy(x: 512, y: 512)
+    context.scaleBy(x: scale, y: scale)
+    context.translateBy(x: -512, y: -512)
+    context.setShouldAntialias(true)
+    let square = CGPath(rect: CGRect(x: 100, y: 100, width: 824, height: 824), transform: nil)
+    fill(square, in: context, gradient: [color(0xE23BC9), color(0x9C2BC4), color(0x4A1A9E)], locations: [0, 0.5, 1],
+         from: CGPoint(x: 512, y: 924), to: CGPoint(x: 512, y: 100))
+    context.saveGState()
+    context.addPath(square)
+    context.clip()
+    let glow = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: [color(0xFFD1F6, 0.35), color(0xFFD1F6, 0)] as CFArray, locations: [0, 1])!
+    context.drawRadialGradient(glow, startCenter: CGPoint(x: 512, y: 540), startRadius: 0, endCenter: CGPoint(x: 512, y: 540), endRadius: 430, options: [])
+    context.restoreGState()
+    let (bars, highlight) = glyph()
+    context.saveGState()
+    context.setShadow(offset: CGSize(width: 0, height: -8), blur: 18, color: color(0x2A0A50, 0.4))
+    context.addPath(highlight)
+    context.setFillColor(color(0xFFFFFF, 0.28))
+    context.fillPath()
+    context.restoreGState()
+    context.saveGState()
+    context.addPath(highlight)
+    context.setStrokeColor(color(0xFFFFFF, 0.55))
+    context.setLineWidth(6)
+    context.strokePath()
+    context.restoreGState()
+    for path in bars {
+        context.saveGState()
+        context.setShadow(offset: CGSize(width: 0, height: -8), blur: 20, color: color(0x2A0A50, 0.45))
+        context.addPath(path)
+        context.setFillColor(color(0xFFFFFF))
+        context.fillPath()
+        context.restoreGState()
+        fill(path, in: context, gradient: [color(0xFFFFFF), color(0xFFE6F8)], locations: [0, 1],
+             from: CGPoint(x: 512, y: 800), to: CGPoint(x: 512, y: 224))
+    }
+    return rep.representation(using: .png, properties: [:])!
+}
+
+let arguments = Array(CommandLine.arguments.dropFirst())
+let fullBleed = arguments.contains("--ios")
+let output = URL(fileURLWithPath: arguments.first(where: { !$0.hasPrefix("--") }) ?? ".")
 try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-for size in [16, 32, 64, 128, 256, 512, 1024] {
-    try render(size: size).write(to: output.appending(path: "icon_\(size).png"))
+if fullBleed {
+    try renderFullBleed(size: 1024).write(to: output.appending(path: "icon_ios_1024.png"))
+} else {
+    for size in [16, 32, 64, 128, 256, 512, 1024] {
+        try render(size: size).write(to: output.appending(path: "icon_\(size).png"))
+    }
 }
 print("Wrote icons to \(output.path)")

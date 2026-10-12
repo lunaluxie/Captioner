@@ -25,17 +25,3 @@ enum WatchProcessor {
         return try await queue.exportAndWait(item)
     }
 }
-
-nonisolated enum WatchError: LocalizedError {
-    case notAVideo
-    case removed
-    case failed(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .notAVideo: "This isn't a video Captioner can open."
-        case .removed: "The video was removed from the queue before it finished."
-        case .failed(let message): message
-        }
-    }
-}
