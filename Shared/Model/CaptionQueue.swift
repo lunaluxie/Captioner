@@ -1,4 +1,6 @@
+#if canImport(AppKit)
 import AppKit
+#endif
 import Foundation
 import Observation
 import os
@@ -180,9 +182,11 @@ final class CaptionQueue {
     private func pumpExport() {
         guard exportingItem == nil else { return }
         guard !exportPending.isEmpty else {
+            #if os(macOS)
             if !batchOutputs.isEmpty, settings.revealOutputInFinder {
                 NSWorkspace.shared.activateFileViewerSelecting(batchOutputs)
             }
+            #endif
             batchOutputs = []
             return
         }
@@ -226,6 +230,7 @@ final class CaptionQueue {
 
     // MARK: - Panels
 
+    #if os(macOS)
     func openPanel() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
@@ -235,4 +240,5 @@ final class CaptionQueue {
         guard panel.runModal() == .OK else { return }
         add(panel.urls)
     }
+    #endif
 }

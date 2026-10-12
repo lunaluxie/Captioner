@@ -25,6 +25,11 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		000000000000000000000011 /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
+			sourceTree = "<group>";
+		};
 		000000000000000000000010 /* Captioner */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -49,6 +54,7 @@
 			isa = PBXGroup;
 			children = (
 				000000000000000000000010 /* Captioner */,
+				000000000000000000000011 /* Shared */,
 				000000000000000000000020 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -76,6 +82,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				000000000000000000000010 /* Captioner */,
+				000000000000000000000011 /* Shared */,
 			);
 			name = Captioner;
 			packageProductDependencies = (

@@ -7,6 +7,8 @@ struct StyleGalleryView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var tab: Tab = .all
     @State private var settings = AppSettings.shared
+    @State private var renaming: CaptionStyle?
+    @State private var renameText = ""
 
     enum Tab: Hashable {
         case saved, all, monoline, multiline, singleWord
@@ -94,7 +96,23 @@ struct StyleGalleryView: View {
             }
             .padding(14)
         }
+        #if os(macOS)
         .frame(width: 600, height: 660)
+        #endif
+        .alert("Rename Style", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
+            TextField("Name", text: $renameText)
+            Button("Rename") {
+                if let style = renaming {
+                    let name = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !name.isEmpty {
+                        settings.renameSavedStyle(id: style.id, to: name)
+                        if item.style.id == style.id { item.style.name = name }
+                    }
+                }
+                renaming = nil
+            }
+            Button("Cancel", role: .cancel) { renaming = nil }
+        }
     }
 
     private func grid(title: String, styles: [CaptionStyle]) -> some View {
@@ -127,10 +145,8 @@ struct StyleGalleryView: View {
                         if isSaved {
                             Divider()
                             Button("Rename…") {
-                                if let name = NamePrompt.run(title: "Rename Style", message: "", defaultValue: style.name) {
-                                    settings.renameSavedStyle(id: style.id, to: name)
-                                    if item.style.id == style.id { item.style.name = name }
-                                }
+                                renameText = style.name
+                                renaming = style
                             }
                             Button("Delete", role: .destructive) { settings.deleteSavedStyle(id: style.id) }
                         }

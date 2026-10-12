@@ -127,8 +127,14 @@ final class AppSettings {
     }
 
     var exportFolder: URL? {
+        #if os(macOS)
         guard exportLocation == .folder, let exportFolderPath else { return nil }
         return URL(fileURLWithPath: exportFolderPath, isDirectory: true)
+        #else
+        let folder = URL.documentsDirectory.appending(path: "Exports", directoryHint: .isDirectory)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
+        #endif
     }
 
     private func store<T: Encodable>(_ value: T, key: String) {
