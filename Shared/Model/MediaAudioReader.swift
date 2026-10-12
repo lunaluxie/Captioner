@@ -2,6 +2,12 @@ import AVFoundation
 import Speech
 
 nonisolated enum TranscriptionError: LocalizedError {
+    #if os(macOS)
+    static let deviceWord = "Mac"
+    #else
+    static let deviceWord = "device"
+    #endif
+
     case noAudioTrack
     case unsupportedLanguage(String)
     case noAudioFormat
@@ -10,7 +16,7 @@ nonisolated enum TranscriptionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noAudioTrack: "This file has no audio track to caption."
-        case .unsupportedLanguage(let name): "On-device transcription isn't available for \(name) on this Mac."
+        case .unsupportedLanguage(let name): "On-device transcription isn't available for \(name) on this \(Self.deviceWord)."
         case .noAudioFormat: "The speech engine didn't offer an audio format it can analyze."
         case .readerFailed(let reason): "The audio couldn't be read: \(reason)"
         }

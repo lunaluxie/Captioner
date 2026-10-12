@@ -7,6 +7,8 @@ struct StyleEditorView: View {
     @Binding var style: CaptionStyle
     @State private var fontLibrary = FontLibrary.shared
     @State private var showAllFonts = false
+    @State private var importingFont = false
+    @State private var fontError: String?
 
     var body: some View {
         Group {
@@ -107,6 +109,24 @@ struct StyleEditorView: View {
                 Text("Add Font File…").tag(FontChoice.custom(fileName: "__add__"))
             }
         }
+        .fileImporter(isPresented: $importingFont, allowedContentTypes: [.font]) { result in
+            switch result {
+            case .success(let url):
+                do {
+                    let font = try fontLibrary.add(url)
+                    style.font = .custom(fileName: font.fileName)
+                } catch {
+                    fontError = error.localizedDescription
+                }
+            case .failure(let error):
+                fontError = error.localizedDescription
+            }
+        }
+        .alert("Couldn't Add Font", isPresented: Binding(get: { fontError != nil }, set: { if !$0 { fontError = nil } })) {
+            Button("OK") { fontError = nil }
+        } message: {
+            Text(fontError ?? "")
+        }
         .onChange(of: style.font) { old, new in
             switch new {
             case .installed(let family) where family == "__toggle__":
@@ -122,16 +142,7 @@ struct StyleEditorView: View {
     }
 
     private func addFontFile() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [UTType.font]
-        panel.message = "Choose a TrueType or OpenType font file."
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            let font = try fontLibrary.add(url)
-            style.font = .custom(fileName: font.fileName)
-        } catch {
-            NSAlert(error: error).runModal()
-        }
+        importingFont = true
     }
 
     private func colorRow(_ title: String, _ color: Binding<RGBAColor>) -> some View {

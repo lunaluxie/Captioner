@@ -1,4 +1,6 @@
+#if canImport(AppKit)
 import AppKit
+#endif
 import Foundation
 import Observation
 import os
@@ -180,9 +182,11 @@ final class CaptionQueue {
     private func pumpExport() {
         guard exportingItem == nil else { return }
         guard !exportPending.isEmpty else {
+            #if os(macOS)
             if !batchOutputs.isEmpty, settings.revealOutputInFinder {
                 NSWorkspace.shared.activateFileViewerSelecting(batchOutputs)
             }
+            #endif
             batchOutputs = []
             return
         }
@@ -226,6 +230,7 @@ final class CaptionQueue {
 
     // MARK: - Panels
 
+    #if os(macOS)
     func openPanel() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
@@ -234,5 +239,21 @@ final class CaptionQueue {
         panel.message = "Choose one or more videos to caption."
         guard panel.runModal() == .OK else { return }
         add(panel.urls)
+    }
+    #endif
+}
+
+/// Why a queued video couldn't be finished on someone's behalf (watched folders on the Mac).
+nonisolated enum WatchError: LocalizedError {
+    case notAVideo
+    case removed
+    case failed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .notAVideo: "This isn't a video Captioner can open."
+        case .removed: "The video was removed from the queue before it finished."
+        case .failed(let message): message
+        }
     }
 }

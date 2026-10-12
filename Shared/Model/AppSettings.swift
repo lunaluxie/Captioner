@@ -56,6 +56,10 @@ final class AppSettings {
     var revealOutputInFinder: Bool {
         didSet { defaults.set(revealOutputInFinder, forKey: "revealOutputInFinder") }
     }
+    /// iPhone and iPad: add each export to the Photos library as well as keeping it in the app.
+    var saveToPhotos: Bool {
+        didSet { defaults.set(saveToPhotos, forKey: "saveToPhotos") }
+    }
 
     private init() {
         localeIdentifier = LanguageCatalog.normalized(defaults.string(forKey: "localeIdentifier") ?? Locale.current.identifier)
@@ -69,6 +73,7 @@ final class AppSettings {
         exportFolderPath = defaults.string(forKey: "exportFolderPath")
         captionHold = defaults.object(forKey: "captionHold") as? Double ?? 1.0
         revealOutputInFinder = defaults.object(forKey: "revealOutputInFinder") as? Bool ?? true
+        saveToPhotos = defaults.object(forKey: "saveToPhotos") as? Bool ?? true
     }
 
     var locale: Locale { Locale(identifier: localeIdentifier) }
@@ -127,8 +132,14 @@ final class AppSettings {
     }
 
     var exportFolder: URL? {
+        #if os(macOS)
         guard exportLocation == .folder, let exportFolderPath else { return nil }
         return URL(fileURLWithPath: exportFolderPath, isDirectory: true)
+        #else
+        let folder = URL.documentsDirectory.appending(path: "Exports", directoryHint: .isDirectory)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
+        #endif
     }
 
     private func store<T: Encodable>(_ value: T, key: String) {
