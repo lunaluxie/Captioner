@@ -291,8 +291,8 @@ func render(_ b: Brand) {
                       in: CGRect(x: 1760, y: 380, width: phW, height: phW * 2760 / 1350), bodyInset: 16, bodyRadius: 215)
         c.save("\(apps)/\(b.folder)/Marketing/AppStore/\(b.name)-ProductPageHeader-3840x1646.png")
     }
-    do { // Search results 3:2: centered headline, devices rising from the bottom.
-        let W = 3840, H = 2560
+    // Search results 3:2, and Apple's 16:9 "universal" size that can fill both placements.
+    for (W, H, suffix) in [(3840, 2560, "SearchResults-3840x2560"), (5244, 2950, "Universal-16x9-5244x2950")] {
         let c = Canvas(W, H)
         let w = CGFloat(W), h = CGFloat(H)
         c.fillGradient(b.g1, b.g2, from: CGPoint(x: 0, y: 0), to: CGPoint(x: w, y: h))
@@ -307,7 +307,7 @@ func render(_ b: Brand) {
         let phW = w * 0.30
         c.appleDevice(bezel: bezelPhone, capture: b.phone, cutout: phoneCut, screenRadius: 186,
                       in: CGRect(x: w * 0.10, y: h * 0.40, width: phW, height: phW * 2760 / 1350), bodyInset: 16, bodyRadius: 215)
-        c.save("\(apps)/\(b.folder)/Marketing/AppStore/\(b.name)-SearchResults-3840x2560.png")
+        c.save("\(apps)/\(b.folder)/Marketing/AppStore/\(b.name)-\(suffix).png")
     }
 }
 
