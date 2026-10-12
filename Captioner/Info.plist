@@ -19,5 +19,7 @@
 	</array>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Captioner listens to the speech in your videos to generate captions, entirely on this Mac.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>
