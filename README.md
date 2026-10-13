@@ -58,6 +58,8 @@ a queue list, an editor with the live preview, caption list and a bottom bar for
 Position and Captions sheets, and Export. Videos come from the Photos picker, the Files picker,
 or "Open in Captioner" and are copied into Documents/Imports; exports land in Documents/Exports
 (visible in the Files app) and are added to Photos unless that is turned off in Settings.
+Return, or the Done button above the keyboard, finishes a caption edit; the context menu (long
+press) has the same split, merge, blank line and timing commands as the Mac.
 Watched folders, Open at Login and Sparkle are Mac-only. Translation, saved styles and fonts
 (system designs, installed families, or imported files) work the same way as on the Mac.
 
