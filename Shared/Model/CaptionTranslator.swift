@@ -22,6 +22,12 @@ nonisolated enum CaptionTranslator {
         var groups: [[Int]] = []
         var current: [Int] = []
         for (index, caption) in captions.enumerated() {
+            if caption.isBlank {
+                // Blank lines are their own group and are never sent for translation.
+                if !current.isEmpty { groups.append(current); current = [] }
+                groups.append([index])
+                continue
+            }
             if let previousIndex = current.last {
                 let previous = captions[previousIndex]
                 if caption.start - previous.end >= pauseBreak || CaptionBuilder.endsSentence(previous.words.last?.text ?? "") {
@@ -42,7 +48,8 @@ nonisolated enum CaptionTranslator {
     /// Timed words for a translated sentence, laid over the captions in `group`.
     static func words(for captions: [Caption], group: [Int], translation: String) -> [TranscriptWord] {
         let tokens = tokenize(translation)
-        guard !tokens.isEmpty, !group.isEmpty else { return [] }
+        guard !group.isEmpty else { return [] }
+        guard !tokens.isEmpty else { return group.flatMap { captions[$0].words } }
         let lengths = group.map { max(1, captions[$0].text.count) }
         let total = Double(lengths.reduce(0, +))
         let ideal = lengths.map { Double(tokens.count) * Double($0) / total }

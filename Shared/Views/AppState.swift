@@ -41,8 +41,10 @@ final class AppState {
         }
         let captions = item.captionsForTranslation
         let groups = CaptionTranslator.sentenceGroups(captions, pauseBreak: max(1, item.style.grouping.pauseBreak))
-        let requests = groups.enumerated().map { index, group in
-            TranslationSession.Request(sourceText: CaptionTranslator.sentenceText(captions, group: group), clientIdentifier: String(index))
+        let requests = groups.enumerated().compactMap { index, group -> TranslationSession.Request? in
+            let text = CaptionTranslator.sentenceText(captions, group: group)
+            guard !text.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+            return TranslationSession.Request(sourceText: text, clientIdentifier: String(index))
         }
         do {
             let responses = try await session.translations(from: requests)

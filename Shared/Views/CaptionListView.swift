@@ -5,6 +5,7 @@ struct CaptionListView: View {
     @Bindable var item: CaptionItem
     @Environment(AppState.self) private var appState
     @State private var followPlayback = true
+    @State private var timingCaption: Caption?
 
     private var player: PlayerController { appState.player }
 
@@ -42,7 +43,8 @@ struct CaptionListView: View {
                     List {
                         ForEach(Array(item.captions.enumerated()), id: \.element.id) { index, caption in
                             CaptionRow(caption: caption, isCurrent: index == currentIndex, item: item,
-                                       onSeek: { player.seek(to: caption.start) })
+                                       onSeek: { player.seek(to: caption.start) },
+                                       onEditTiming: { timingCaption = caption })
                                 .id(caption.id)
                                 .listRowSeparator(.hidden)
                                 .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
@@ -70,6 +72,78 @@ struct CaptionListView: View {
                 .padding(.vertical, 6)
             }
         }
+        .sheet(item: $timingCaption) { caption in
+            TimingEditorView(caption: caption, playhead: player.currentTime) { start, end in
+                item.retime(caption.id, start: start, end: end)
+            }
+        }
+    }
+}
+
+/// Start and end of one caption, typed or taken from the playhead.
+struct TimingEditorView: View {
+    let caption: Caption
+    let playhead: TimeInterval
+    let onSave: (TimeInterval, TimeInterval) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var startText = ""
+    @State private var endText = ""
+
+    private var start: TimeInterval? { TimeFormat.parse(startText) }
+    private var end: TimeInterval? { TimeFormat.parse(endText) }
+    private var isValid: Bool {
+        guard let start, let end else { return false }
+        return end > start
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(caption.isBlank ? "Blank line timing" : "Timing for “\(caption.text)”")
+                .font(.headline)
+                .lineLimit(2)
+            Grid(alignment: .leading, verticalSpacing: 10) {
+                GridRow {
+                    Text("Start")
+                    TextField("0:00.000", text: $startText)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 130)
+                        .monospacedDigit()
+                    Button("Playhead") { startText = TimeFormat.precise(playhead) }
+                }
+                GridRow {
+                    Text("End")
+                    TextField("0:00.000", text: $endText)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 130)
+                        .monospacedDigit()
+                    Button("Playhead") { endText = TimeFormat.precise(playhead) }
+                }
+            }
+            Text("Minutes, seconds and a fraction, like 0:18.4. The caption's words are spread over the new span.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Save") {
+                    if let start, let end { onSave(start, end) }
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
+                .disabled(!isValid)
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 360)
+        .onAppear {
+            startText = TimeFormat.precise(caption.start)
+            endText = TimeFormat.precise(caption.end)
+        }
+        #if !os(macOS)
+        .presentationDetents([.medium])
+        #endif
     }
 }
 
@@ -78,6 +152,7 @@ struct CaptionRow: View {
     let isCurrent: Bool
     let item: CaptionItem
     let onSeek: () -> Void
+    let onEditTiming: () -> Void
 
     @State private var text: String = ""
     @FocusState private var focused: Bool
@@ -92,7 +167,7 @@ struct CaptionRow: View {
             .buttonStyle(.plain)
             .frame(width: 56, alignment: .leading)
             .padding(.top, 3)
-            TextField("Caption", text: $text, axis: .vertical)
+            TextField("Blank line, nothing shown", text: $text, axis: .vertical)
                 .textFieldStyle(.plain)
                 .focused($focused)
                 .onSubmit { commit() }
@@ -114,6 +189,8 @@ struct CaptionRow: View {
             }
             Button("Merge with Next") { item.mergeWithNext(caption.id) }
                 .disabled(item.captions.last?.id == caption.id)
+            Button("Insert Blank Line After") { item.insertBlank(after: caption.id) }
+            Button("Edit Timing…") { onEditTiming() }
             Divider()
             Button("Delete", role: .destructive) { item.delete(caption.id) }
         }

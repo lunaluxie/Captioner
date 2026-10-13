@@ -5,11 +5,16 @@ struct MainView: View {
     @Environment(CaptionQueue.self) private var queue
     @Environment(AppState.self) private var appState
     @State private var dropTargeted = false
+    #if DEBUG
+    @State private var columns: NavigationSplitViewVisibility = ProcessInfo.processInfo.environment["CAPTIONER_SNAPSHOT_SIDEBAR"] == "hidden" ? .detailOnly : .all
+    #else
+    @State private var columns: NavigationSplitViewVisibility = .all
+    #endif
 
     var body: some View {
         @Bindable var appState = appState
         @Bindable var queue = queue
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columns) {
             QueueSidebarView()
                 .navigationSplitViewColumnWidth(min: 210, ideal: 250, max: 340)
         } detail: {

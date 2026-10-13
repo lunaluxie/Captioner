@@ -25,6 +25,14 @@ nonisolated struct Caption: Codable, Hashable, Identifiable, Sendable {
     var duration: TimeInterval { max(0, end - start) }
     var text: String { words.map(\.text).joined(separator: " ") }
 
+    /// A caption with no text: it holds its place on the timeline and shows nothing, so the
+    /// caption before it leaves the screen when it starts.
+    var isBlank: Bool { words.allSatisfy { $0.text.isEmpty } }
+
+    static func blank(start: TimeInterval, end: TimeInterval) -> Caption {
+        Caption(words: [TranscriptWord(text: "", start: start, end: max(end, start + 0.05))])
+    }
+
     /// The word being spoken at `time`: the last one that has started. Stays on the last word
     /// of the caption once it has been said, so the highlight never blinks off between words.
     func activeWordIndex(at time: TimeInterval) -> Int? {
@@ -38,7 +46,7 @@ nonisolated struct Caption: Codable, Hashable, Identifiable, Sendable {
     /// proportion to their length so highlighting still moves at roughly the spoken pace.
     func replacingText(_ text: String) -> Caption {
         let pieces = text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).map(String.init)
-        guard !pieces.isEmpty else { return Caption(id: id, words: []) }
+        guard !pieces.isEmpty else { return Caption(id: id, words: [TranscriptWord(text: "", start: start, end: end)]) }
         let span = max(duration, 0.2)
         let totalLength = Double(pieces.reduce(0) { $0 + $1.count })
         var cursor = start
