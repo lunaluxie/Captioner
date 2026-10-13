@@ -51,6 +51,16 @@ struct CaptionListView: View {
                         }
                     }
                     .listStyle(.plain)
+                    #if os(iOS)
+                    .scrollDismissesKeyboard(.interactively)
+                    .toolbar {
+                        ToolbarItemGroup(placement: .keyboard) {
+                            Spacer()
+                            Button("Done") { endEditing() }
+                                .fontWeight(.semibold)
+                        }
+                    }
+                    #endif
                     .onChange(of: currentIndex) { _, index in
                         guard followPlayback, player.isPlaying, let index, item.captions.indices.contains(index) else { return }
                         withAnimation { proxy.scrollTo(item.captions[index].id, anchor: .center) }
@@ -108,6 +118,7 @@ struct TimingEditorView: View {
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 130)
                         .monospacedDigit()
+                        .timeKeyboard()
                     Button("Playhead") { startText = TimeFormat.precise(playhead) }
                 }
                 GridRow {
@@ -116,6 +127,7 @@ struct TimingEditorView: View {
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 130)
                         .monospacedDigit()
+                        .timeKeyboard()
                     Button("Playhead") { endText = TimeFormat.precise(playhead) }
                 }
             }
@@ -173,6 +185,16 @@ struct CaptionRow: View {
                 .onSubmit { commit() }
                 .onChange(of: focused) { _, isFocused in if !isFocused { commit() } }
                 .onChange(of: caption.text) { _, new in if !focused { text = new } }
+                #if os(iOS)
+                // Captions are single lines: Return commits and puts the keyboard away instead of adding a line.
+                .submitLabel(.done)
+                .onChange(of: text) { _, new in
+                    if new.contains("\n") {
+                        text = new.replacingOccurrences(of: "\n", with: "")
+                        focused = false
+                    }
+                }
+                #endif
                 .font(.body)
         }
         .padding(.vertical, 5)
@@ -198,5 +220,23 @@ struct CaptionRow: View {
 
     private func commit() {
         item.updateText(of: caption.id, to: text)
+    }
+}
+
+#if os(iOS)
+/// Resigns whatever text field has the keyboard.
+@MainActor func endEditing() {
+    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+}
+#endif
+
+private extension View {
+    /// Digits and punctuation for a time like 0:18.4 on iOS; no change on the Mac.
+    @ViewBuilder func timeKeyboard() -> some View {
+        #if os(iOS)
+        self.keyboardType(.numbersAndPunctuation)
+        #else
+        self
+        #endif
     }
 }
