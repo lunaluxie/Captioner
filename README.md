@@ -36,7 +36,9 @@ video file with the captions burned in.
   split into words timed by length and regrouped to the style.
 - **Editing**: the caption list beside the preview. Click a time to jump there, edit text in
   place (word timings are shared out again by length), right-click to split before a word, merge
-  with the next caption or delete. "Rebuild from Transcript" regroups from the original words.
+  with the next caption, insert a blank line, edit the timing, or delete. A caption with no text
+  is a blank line: it keeps its span and shows nothing, so the caption before it ends exactly
+  when the blank starts. "Rebuild from Transcript" regroups from the original words.
 - The preview plays the video through the same compositor the export uses, so what you see is
   what you get. ⌥Space plays and pauses, ⌥⌘← / ⌥⌘→ skip 5 s.
 - **Watched folders** (Settings › Watched Folders): every video that arrives in a watched folder

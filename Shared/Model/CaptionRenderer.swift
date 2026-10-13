@@ -65,7 +65,7 @@ nonisolated enum CaptionRenderer {
     /// The region a caption occupies at `time`, with room for its decorations; nil when nothing shows.
     /// Bottom-left origin.
     static func region(_ snapshot: RenderSnapshot, time: TimeInterval, size: CGSize) -> CGRect? {
-        guard let index = snapshot.captions.visibleIndex(at: time, hold: snapshot.hold) else { return nil }
+        guard let index = snapshot.captions.visibleIndex(at: time, hold: snapshot.hold), !snapshot.captions[index].isBlank else { return nil }
         let shown = displayed(snapshot.captions[index], style: snapshot.style, time: time)
         let layout = layout(shown.caption, style: snapshot.style, placement: snapshot.placement.placement(for: size),
                             textOptions: snapshot.textOptions, fontSize: fontSize(for: snapshot.style, in: size), size: size)
@@ -75,7 +75,7 @@ nonisolated enum CaptionRenderer {
     /// The text block's bounds for the caption at `time`, with the origin at the top-left as
     /// SwiftUI expects. Used to show the drag handle over the preview.
     static func blockRectTopLeft(_ snapshot: RenderSnapshot, time: TimeInterval, size: CGSize) -> CGRect? {
-        guard let index = snapshot.captions.index(at: time) ?? (snapshot.captions.isEmpty ? nil : 0) else { return nil }
+        guard let index = snapshot.captions.index(at: time) ?? (snapshot.captions.isEmpty ? nil : 0), !snapshot.captions[index].isBlank else { return nil }
         let shown = displayed(snapshot.captions[index], style: snapshot.style, time: time)
         let layout = layout(shown.caption, style: snapshot.style, placement: snapshot.placement.placement(for: size),
                             textOptions: snapshot.textOptions, fontSize: fontSize(for: snapshot.style, in: size), size: size)

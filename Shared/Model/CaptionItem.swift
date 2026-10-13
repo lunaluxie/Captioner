@@ -235,11 +235,18 @@ final class CaptionItem: Identifiable {
         guard let index = captions.firstIndex(where: { $0.id == captionID }) else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed != captions[index].text else { return }
-        if trimmed.isEmpty {
-            captions.remove(at: index)
-        } else {
-            captions[index] = captions[index].replacingText(trimmed)
-        }
+        // An emptied line becomes a blank caption: nothing shows while it is on screen.
+        captions[index] = captions[index].replacingText(trimmed)
+        hasEdits = true
+    }
+
+    /// Adds a blank caption after `captionID`, filling the gap up to the next caption (or one
+    /// second when it is the last).
+    func insertBlank(after captionID: UUID) {
+        guard let index = captions.firstIndex(where: { $0.id == captionID }) else { return }
+        let start = captions[index].end
+        let end = index + 1 < captions.count ? max(captions[index + 1].start, start + 0.05) : start + 1
+        captions.insert(.blank(start: start, end: end), at: index + 1)
         hasEdits = true
     }
 

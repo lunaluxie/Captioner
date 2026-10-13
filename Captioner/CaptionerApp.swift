@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import SwiftUI
 
 @main
@@ -70,6 +71,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Development aid: CAPTIONER_SNAPSHOT=/path/to.png writes a picture of the main window a few seconds after launch.
         if let path = ProcessInfo.processInfo.environment["CAPTIONER_SNAPSHOT"] {
             let delay = Double(ProcessInfo.processInfo.environment["CAPTIONER_SNAPSHOT_DELAY"] ?? "") ?? 6
+            // CAPTIONER_SNAPSHOT_SIZE=1440x900 sizes the window first; CAPTIONER_SNAPSHOT_SIDEBAR=hidden collapses the sidebar.
+            if let size = ProcessInfo.processInfo.environment["CAPTIONER_SNAPSHOT_SIZE"]?.split(separator: "x").compactMap({ Double($0) }), size.count == 2 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    if let window = NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil }) {
+                        var frame = window.frame
+                        frame.size = NSSize(width: size[0], height: size[1])
+                        window.setFrame(frame, display: true)
+                    }
+                }
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 NSLog("snapshot: %d windows: %@", NSApp.windows.count, NSApp.windows.map { "\($0.title) visible=\($0.isVisible) \($0.frame)" })
                 guard let window = NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil }),
@@ -81,6 +92,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     NSLog("snapshot: wrote %@", path)
                     if let tree = view.perform(NSSelectorFromString("_subtreeDescription"))?.takeUnretainedValue() as? String {
                         try? tree.write(toFile: path + ".tree.txt", atomically: true, encoding: .utf8)
+                    }
+                    // The player layer doesn't draw into the snapshot, so also write the composited frame
+                    // at half a second (first caption showing) for pasting into the preview area.
+                    if let item = CaptionQueue.shared.selected, let composition = item.makeComposition() {
+                        let generator = AVAssetImageGenerator(asset: AVURLAsset(url: item.url))
+                        generator.videoComposition = composition
+                        generator.requestedTimeToleranceBefore = .zero
+                        generator.requestedTimeToleranceAfter = .zero
+                        if let frame = try? generator.copyCGImage(at: CMTime(seconds: 0.5, preferredTimescale: 600), actualTime: nil) {
+                            let rep = NSBitmapImageRep(cgImage: frame)
+                            try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path + ".frame.png"))
+                        }
                     }
                 } catch {
                     NSLog("snapshot failed: %@", String(describing: error))
