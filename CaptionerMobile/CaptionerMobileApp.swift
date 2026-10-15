@@ -1,3 +1,4 @@
+import AVFAudio
 import SwiftUI
 
 @main
@@ -7,6 +8,9 @@ struct CaptionerMobileApp: App {
 
     init() {
         _ = FontLibrary.shared
+        // The preview is a video player: it should be heard with the ring/silent switch on silent,
+        // and not duck or be muted by the default ambient session.
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
     }
 
     var body: some Scene {

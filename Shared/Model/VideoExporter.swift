@@ -30,7 +30,7 @@ nonisolated enum VideoExporter {
         guard let videoTrack = try await asset.loadTracks(withMediaType: .video).first else {
             throw CaptionerError.noVideoTrack
         }
-        let audioTracks = try await asset.loadTracks(withMediaType: .audio)
+        let audioTracks = try await enabledAudioTracks(of: asset)
         let (duration, metadata) = try await asset.load(.duration, .metadata)
         let (dataRate, frameRate) = try await videoTrack.load(.estimatedDataRate, .nominalFrameRate)
         let range = timeRange ?? CMTimeRange(start: .zero, duration: duration)
@@ -63,7 +63,7 @@ nonisolated enum VideoExporter {
         for track in audioTracks {
             let descriptions = try await track.load(.formatDescriptions)
             let passthrough = descriptions.allSatisfy(fitsInMP4)
-            let output = AVAssetReaderTrackOutput(track: track, outputSettings: passthrough ? nil : [AVFormatIDKey: kAudioFormatLinearPCM])
+            let output = AVAssetReaderTrackOutput(track: track, outputSettings: passthrough ? nil : pcmSettings(matching: descriptions.first))
             output.alwaysCopiesSampleData = false
             guard reader.canAdd(output) else { continue }
             reader.add(output)
@@ -195,6 +195,27 @@ nonisolated enum VideoExporter {
         default:
             false
         }
+    }
+
+    /// The audio tracks that play by default. iPhone spatial recordings carry a second, disabled
+    /// track in Apple's positional codec (four channels); copying it would duplicate the sound,
+    /// and iOS can't fold four channels into a stereo AAC encoder, which failed the whole export.
+    private static func enabledAudioTracks(of asset: AVAsset) async throws -> [AVAssetTrack] {
+        let tracks = try await asset.loadTracks(withMediaType: .audio)
+        var enabled: [AVAssetTrack] = []
+        for track in tracks where try await track.load(.isEnabled) {
+            enabled.append(track)
+        }
+        return enabled.isEmpty ? tracks : enabled
+    }
+
+    /// Decoded audio for the AAC encoder: the source's rate, and no more than two channels.
+    private static func pcmSettings(matching description: CMFormatDescription?) -> [String: Any] {
+        var settings: [String: Any] = [AVFormatIDKey: kAudioFormatLinearPCM]
+        if let description, let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(description)?.pointee, asbd.mChannelsPerFrame > 2 {
+            settings[AVNumberOfChannelsKey] = 2
+        }
+        return settings
     }
 
     private static func aacSettings(matching description: CMFormatDescription?) -> [String: Any] {
