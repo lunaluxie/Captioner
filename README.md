@@ -46,6 +46,10 @@ video file with the captions burned in.
   with the Export settings, then announced with a notification. Files already in the folder when
   it is added are ignored; a new file is picked up once its size has stopped changing. Captioner's
   own "… Captioned" outputs are skipped. Open at Login starts the app without a window.
+- **Caption files**: File › Save Captions As (or the inspector's Caption file menu) writes the captions
+  as SubRip (.srt), WebVTT (.vtt) or plain text (.txt), with the transcription controls applied and
+  blank lines left out (they become paragraph breaks in the text). `SubtitleWriter` is the shared
+  writer; the Android app produces the same files.
 - **Export** (⌘E, or ⇧⌘E for every video) writes `<name> Captioned.mp4` next to the original
   or into a folder chosen in Settings, at the source resolution and frame rate with the audio
   passed through. H.264 by default, HEVC optional. Rotated iPhone footage is composited upright.
@@ -59,14 +63,24 @@ Position and Captions sheets, and Export. Videos come from the Photos picker, th
 or "Open in Captioner" and are copied into Documents/Imports; exports land in Documents/Exports
 (visible in the Files app) and are added to Photos unless that is turned off in Settings.
 Return, or the Done button above the keyboard, finishes a caption edit; the context menu (long
-press) has the same split, merge, blank line and timing commands as the Mac.
+press) has the same split, merge, blank line and timing commands as the Mac. The Captions sheet's
+Caption File section writes an SRT, VTT or text file into Captioner's folder in Files and opens the
+share sheet; the Exported alert's Share… button opens the share sheet for the video. On wide screens
+(iPad, or an unfolded iPhone: a regular width class or at least 600 points) the editor puts the video
+on the left and the caption list beside it instead of stacking them.
 Watched folders, Open at Login and Sparkle are Mac-only. Translation, saved styles and fonts
 (system designs, installed families, or imported files) work the same way as on the Mac.
 
 The simulator has no on-device speech models, so transcription fails there; the debug hook
 `CAPTIONER_DEBUG_SUBTITLES=/path.srt` (with `CAPTIONER_DEBUG_OPEN`) feeds captions from an SRT
-instead, passed through `simctl launch` as `SIMCTL_CHILD_…` variables. Everything else, including
-export and saving to Photos, runs in the simulator.
+instead, passed through `simctl launch` as `SIMCTL_CHILD_…` variables, and `CAPTIONER_DEBUG_EDIT=1`
+opens the first video's editor right away. Everything else, including export and saving to Photos,
+runs in the simulator, with one exception: on the iOS 27 simulator runtimes (27.0, 27.1 including the
+iPhone Duo) every player item that carries a custom video composition fails to become ready
+(AVFoundation -11800, underlying -12784), so the preview stays black there. Real iOS 27 devices
+play it fine, and the iOS 26 simulators do too; it is a known Xcode 27 simulator problem
+(Apple Developer Forums thread 837179). Export is unaffected because it reads through
+`AVAssetReader`.
 
 ## Project notes
 

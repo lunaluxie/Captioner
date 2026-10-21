@@ -27,6 +27,12 @@ struct AppCommands: Commands {
             Button("Export All") { queue.exportAll() }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
                 .disabled(!queue.items.contains { $0.hasCaptions && !$0.status.isBusy })
+            Menu("Save Captions As") {
+                ForEach(SubtitleWriter.Format.allCases) { format in
+                    Button(format.title) { if let selected { CaptionFileExport.save(selected, format: format) } }
+                }
+            }
+            .disabled(!(selected?.hasCaptions ?? false) || (selected?.status.isBusy ?? true))
             Divider()
             Button("Remove from Queue") { if let id = queue.selectedID { queue.remove([id]) } }
                 .keyboardShortcut(.delete, modifiers: [.command])
