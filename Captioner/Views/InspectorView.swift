@@ -74,6 +74,15 @@ struct InspectorView: View {
                     .disabled(item.status == .loading || item.status == .exporting)
                 }
             }
+            LabeledContent("Caption file") {
+                Menu("Save As…") {
+                    ForEach(SubtitleWriter.Format.allCases) { format in
+                        Button(format.title) { CaptionFileExport.save(item, format: format) }
+                    }
+                }
+                .fixedSize()
+                .disabled(!item.hasCaptions || item.status.isBusy)
+            }
         }
     }
 

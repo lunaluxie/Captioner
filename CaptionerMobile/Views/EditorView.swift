@@ -13,17 +13,32 @@ struct EditorView: View {
     @State private var exportResult: URL?
     @State private var exportNote = ""
     @State private var confirmRegenerate = false
+    @State private var shareFile: ShareFile?
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     private var settings: AppSettings { AppSettings.shared }
 
     var body: some View {
         GeometryReader { geometry in
-            VStack(spacing: 0) {
-                MobileStatusBanner(item: item)
-                MobilePreviewView(item: item)
-                    .frame(height: previewHeight(for: geometry.size))
-                Divider()
-                CaptionListView(item: item)
+            if sizeClass == .regular || geometry.size.width >= 600 {
+                // Wide screens (iPad, an unfolded iPhone): the video on the left, the captions beside it.
+                HStack(spacing: 0) {
+                    VStack(spacing: 0) {
+                        MobileStatusBanner(item: item)
+                        MobilePreviewView(item: item)
+                    }
+                    .frame(width: previewWidth(for: geometry.size))
+                    Divider()
+                    CaptionListView(item: item)
+                }
+            } else {
+                VStack(spacing: 0) {
+                    MobileStatusBanner(item: item)
+                    MobilePreviewView(item: item)
+                        .frame(height: previewHeight(for: geometry.size))
+                    Divider()
+                    CaptionListView(item: item)
+                }
             }
         }
         .navigationTitle(item.name)
@@ -61,12 +76,20 @@ struct EditorView: View {
         }
         .alert("Exported", isPresented: Binding(get: { exportResult != nil }, set: { if !$0 { exportResult = nil } })) {
             if let url = exportResult {
-                ShareLink(item: url) { Text("Share…") }
+                Button("Share…") { shareFile = ShareFile(url: url) }
             }
             Button("Done") { exportResult = nil }
         } message: {
             Text(exportNote)
         }
+        .sheet(item: $shareFile) { file in
+            ShareSheet(url: file.url)
+        }
+    }
+
+    /// Side by side, the video and the captions split the width evenly.
+    private func previewWidth(for size: CGSize) -> CGFloat {
+        size.width / 2
     }
 
     /// Portrait videos get more of the screen than wide ones, and the list always keeps some room.

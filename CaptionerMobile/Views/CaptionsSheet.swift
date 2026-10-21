@@ -11,6 +11,7 @@ struct CaptionsSheet: View {
     @State private var importingSubtitles = false
     @State private var confirmRegenerate = false
     @State private var importError: String?
+    @State private var shareFile: ShareFile?
 
     private var settings: AppSettings { AppSettings.shared }
     private var catalog: TranslationCatalog { TranslationCatalog.shared }
@@ -70,6 +71,28 @@ struct CaptionsSheet: View {
                     Toggle("Title case", isOn: $item.textOptions.titleCase)
                     Toggle("Show curse words", isOn: $item.textOptions.showCurseWords)
                 }
+
+                Section {
+                    ForEach(SubtitleWriter.Format.allCases) { format in
+                        Button {
+                            do {
+                                shareFile = ShareFile(url: try CaptionFileExport.write(item, format: format))
+                            } catch {
+                                importError = error.localizedDescription
+                            }
+                        } label: {
+                            Label(format.title, systemImage: format == .txt ? "doc.text" : "captions.bubble")
+                        }
+                    }
+                    .disabled(!item.hasCaptions || item.status.isBusy)
+                } header: {
+                    Text("Caption File")
+                } footer: {
+                    Text("Saves the captions as they are shown, into Captioner's folder in Files, and opens the share sheet.")
+                }
+            }
+            .sheet(item: $shareFile) { file in
+                ShareSheet(url: file.url)
             }
             .navigationTitle("Captions")
             .navigationBarTitleDisplayMode(.inline)

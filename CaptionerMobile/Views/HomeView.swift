@@ -11,10 +11,11 @@ struct HomeView: View {
     @State private var showSettings = false
     @State private var isImporting = false
     @State private var importError: String?
+    @State private var path: [CaptionItem.ID] = []
 
     var body: some View {
         @Bindable var queue = queue
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 if queue.items.isEmpty {
                     emptyState
@@ -56,6 +57,14 @@ struct HomeView: View {
             }
         }
         .sheet(isPresented: $showSettings) { SettingsSheet() }
+        #if DEBUG
+        // Development aid: CAPTIONER_DEBUG_EDIT=1 opens the first video's editor as soon as it is in the queue.
+        .task {
+            guard ProcessInfo.processInfo.environment["CAPTIONER_DEBUG_EDIT"] != nil else { return }
+            while queue.items.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
+            if let first = queue.items.first { path = [first.id] }
+        }
+        #endif
         .alert("Couldn't Add Video", isPresented: Binding(get: { importError != nil }, set: { if !$0 { importError = nil } })) {
             Button("OK") { importError = nil }
         } message: {
