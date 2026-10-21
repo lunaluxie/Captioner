@@ -87,11 +87,9 @@ struct EditorView: View {
         }
     }
 
-    /// Side by side, the video takes what its shape needs, between two fifths and three fifths of the width.
+    /// Side by side, the video and the captions split the width evenly.
     private func previewWidth(for size: CGSize) -> CGFloat {
-        let aspect = item.renderSize.width / max(item.renderSize.height, 1)
-        let natural = (size.height - 44) * aspect
-        return min(max(natural, size.width * 0.4), size.width * 0.6)
+        size.width / 2
     }
 
     /// Portrait videos get more of the screen than wide ones, and the list always keeps some room.
