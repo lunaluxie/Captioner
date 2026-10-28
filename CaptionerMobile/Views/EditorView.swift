@@ -10,6 +10,7 @@ struct EditorView: View {
     @State private var showStyle = false
     @State private var showPosition = false
     @State private var showCaptionSettings = false
+    @State private var showWatermark = false
     @State private var exportResult: URL?
     @State private var exportNote = ""
     @State private var confirmRegenerate = false
@@ -48,6 +49,7 @@ struct EditorView: View {
                 Button { showStyle = true } label: { Label("Style", systemImage: "textformat") }
                 Button { showPosition = true } label: { Label("Position", systemImage: "rectangle.bottomthird.inset.filled") }
                 Button { showCaptionSettings = true } label: { Label("Captions", systemImage: "captions.bubble") }
+                Button { showWatermark = true } label: { Label("Watermark", systemImage: "rectangle.inset.topright.filled") }
                 Spacer()
                 Button {
                     queue.export([item.id])
@@ -60,6 +62,7 @@ struct EditorView: View {
         .sheet(isPresented: $showStyle) { StyleSheet(item: item) }
         .sheet(isPresented: $showPosition) { PositionSheet(item: item) }
         .sheet(isPresented: $showCaptionSettings) { CaptionsSheet(item: item) }
+        .sheet(isPresented: $showWatermark) { WatermarkSheet(item: item) }
         .task(id: "\(item.id)-\(item.info == nil)") {
             let player = appState.player
             player.load(asset: item.asset, makeComposition: { item.makeComposition() }, duration: item.duration)
@@ -141,6 +144,8 @@ struct MobileStatusBanner: View {
             case .ready, .exported:
                 if item.isTranslating {
                     row(icon: "globe", text: "Translating…", progress: nil)
+                } else if item.isDetectingSpeakers {
+                    row(icon: "person.2.wave.2", text: item.speakerStatus, progress: item.speakerProgress)
                 }
             }
         }

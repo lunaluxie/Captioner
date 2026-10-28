@@ -38,6 +38,11 @@ struct AppCommands: Commands {
                 .disabled(selected == nil || (selected?.status.isBusy ?? true))
             Button("Rebuild Captions from Transcript") { selected?.rebuildCaptions() }
                 .disabled(!(selected?.hasEdits ?? false))
+            Button("Identify Speakers") {
+                guard let selected else { return }
+                if selected.speakerMode.isOn { selected.detectSpeakers() } else { selected.speakerMode = .automatic }
+            }
+            .disabled(!(selected?.hasCaptions ?? false) || (selected?.status.isBusy ?? true) || (selected?.isDetectingSpeakers ?? false))
             Divider()
             Button("Caption Styles…") { appState.showGallery = true }
                 .keyboardShortcut("t", modifiers: [.command, .shift])
@@ -48,6 +53,8 @@ struct AppCommands: Commands {
                     other.style = selected.style
                     other.placement = selected.placement
                     other.textOptions = selected.textOptions
+                    other.watermark = selected.watermark
+                    other.speakerMode = selected.speakerMode
                 }
             }
             .disabled(selected == nil || queue.items.count < 2)

@@ -66,6 +66,33 @@ struct CaptionsSheet: View {
                     Text("Translated on this device. Timing follows the original speech; choose the original language to switch back.")
                 }
 
+                Section {
+                    Picker("Speakers", selection: $item.speakerMode) {
+                        ForEach(SpeakerMode.choices, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    if item.isDetectingSpeakers {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(item.speakerStatus)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                            ProgressView(value: item.speakerProgress)
+                        }
+                    } else if let error = item.speakerError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    } else if item.speakerMode.isOn {
+                        Button("Identify Again") { item.detectSpeakers() }
+                            .disabled(!item.hasCaptions || item.status.isBusy)
+                    }
+                } header: {
+                    Text("Speakers")
+                } footer: {
+                    Text(item.speakerMode.isOn && item.speakerCount > 0
+                         ? "\(item.speakerCount) \(item.speakerCount == 1 ? "voice" : "voices") found. Tap a caption's dot in the list to change its speaker; the colors are in the style."
+                         : "Colors each caption by voice: yellow, cyan, green and magenta for up to four speakers. Captions without a speaker keep the text color. The first time, a 22 MB speaker model is downloaded; after that it works offline.")
+                }
+
                 Section("Transcription Controls") {
                     Toggle("Show punctuation", isOn: $item.textOptions.showPunctuation)
                     Toggle("Title case", isOn: $item.textOptions.titleCase)
@@ -104,6 +131,7 @@ struct CaptionsSheet: View {
         }
         .onAppear { catalog.load() }
         .onChange(of: item.textOptions) { _, options in settings.textOptions = options }
+        .onChange(of: item.speakerMode) { _, mode in settings.speakerMode = mode }
         .onChange(of: item.localeIdentifier) { _, identifier in
             settings.localeIdentifier = identifier
             guard item.source == .video, item.status != .loading, item.status != .exporting else { return }

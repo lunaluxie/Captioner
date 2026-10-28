@@ -57,6 +57,14 @@ nonisolated final class CaptionCompositor: NSObject, AVVideoCompositing, @unchec
     private let ciContext = CIContext(options: [.cacheIntermediates: false, .name: "Captioner"])
     private var cachedKey: OverlayKey?
     private var cachedImage: CIImage?
+    private var watermarkKey: WatermarkKey?
+    private var watermarkImage: CIImage?
+
+    private struct WatermarkKey: Hashable {
+        let settings: WatermarkSettings
+        let width: Double
+        let height: Double
+    }
 
     private static let pixelAttributes: [String: any Sendable] = [
         kCVPixelBufferPixelFormatTypeKey as String: [kCVPixelFormatType_32BGRA],
@@ -101,7 +109,11 @@ nonisolated final class CaptionCompositor: NSObject, AVVideoCompositing, @unchec
         }
 
         let time = request.compositionTime.seconds
-        if let overlay = overlayImage(instruction.overlay.snapshot, time: time, size: size) {
+        let snapshot = instruction.overlay.snapshot
+        if let mark = watermark(snapshot.watermark, size: size) {
+            image = mark.composited(over: image)
+        }
+        if let overlay = overlayImage(snapshot, time: time, size: size) {
             image = overlay.composited(over: image)
         }
 
@@ -136,6 +148,43 @@ nonisolated final class CaptionCompositor: NSObject, AVVideoCompositing, @unchec
         cachedKey = key
         cachedImage = image
         return image
+    }
+}
+
+extension CaptionCompositor {
+    /// The watermark scaled, placed and faded for a frame of `size`; built once per settings change.
+    fileprivate func watermark(_ settings: WatermarkSettings, size: CGSize) -> CIImage? {
+        let key = WatermarkKey(settings: settings, width: size.width, height: size.height)
+        if key == watermarkKey { return watermarkImage }
+        watermarkKey = key
+        watermarkImage = Self.makeWatermark(settings, size: size)
+        return watermarkImage
+    }
+
+    nonisolated static func makeWatermark(_ settings: WatermarkSettings, size: CGSize) -> CIImage? {
+        guard let fileName = settings.fileName, settings.opacity > 0, let cgImage = WatermarkLibrary.image(named: fileName) else { return nil }
+        let imageSize = CGSize(width: cgImage.width, height: cgImage.height)
+        let frame = settings.frame(imageSize: imageSize, in: size)
+        guard frame.width >= 1, frame.height >= 1 else { return nil }
+        var image = CIImage(cgImage: cgImage)
+        let scale = frame.width / imageSize.width
+        if scale < 1 {
+            image = image.applyingFilter("CILanczosScaleTransform", parameters: [kCIInputScaleKey: scale, kCIInputAspectRatioKey: 1])
+        } else if scale != 1 {
+            image = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+        }
+        image = image.transformed(by: CGAffineTransform(translationX: frame.minX - image.extent.minX, y: frame.minY - image.extent.minY))
+        if settings.opacity < 1 {
+            // Scale every channel: Core Image works in premultiplied alpha.
+            let o = CGFloat(settings.opacity)
+            image = image.applyingFilter("CIColorMatrix", parameters: [
+                "inputRVector": CIVector(x: o, y: 0, z: 0, w: 0),
+                "inputGVector": CIVector(x: 0, y: o, z: 0, w: 0),
+                "inputBVector": CIVector(x: 0, y: 0, z: o, w: 0),
+                "inputAVector": CIVector(x: 0, y: 0, z: 0, w: o),
+            ])
+        }
+        return image.cropped(to: frame.insetBy(dx: -1, dy: -1))
     }
 }
 

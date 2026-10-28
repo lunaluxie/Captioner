@@ -65,6 +65,21 @@ final class CaptionItem: Identifiable {
     var textOptions: TextOptions {
         didSet { publish() }
     }
+    var watermark: WatermarkSettings {
+        didSet { publish() }
+    }
+    /// Whether, and how many, speakers to look for. Turning it on identifies them; off clears them.
+    var speakerMode: SpeakerMode {
+        didSet { if oldValue != speakerMode { speakerModeChanged() } }
+    }
+    private(set) var isDetectingSpeakers = false
+    /// What detection is doing right now ("Listening for voices…").
+    private(set) var speakerStatus = ""
+    private(set) var speakerProgress: Double = 0
+    /// How many voices the last detection found.
+    private(set) var speakerCount = 0
+    var speakerError: String?
+    @ObservationIgnored private var speakerTask: Task<Void, Never>?
     /// Set once the captions have been edited, so a style change stops regrouping them.
     var hasEdits = false
     /// Arrived through a watched folder: handled without the Finder popping up.
@@ -94,12 +109,15 @@ final class CaptionItem: Identifiable {
         style = settings.defaultStyle
         placement = settings.placement
         textOptions = settings.textOptions
+        watermark = settings.watermark
+        speakerMode = settings.speakerMode
         overlay = CaptionOverlay(snapshot: RenderSnapshot(captions: [], style: settings.defaultStyle, placement: settings.placement,
-                                                          textOptions: settings.textOptions, hold: settings.captionHold))
+                                                          textOptions: settings.textOptions, hold: settings.captionHold, watermark: settings.watermark))
     }
 
     var snapshot: RenderSnapshot {
-        RenderSnapshot(captions: captions, style: style, placement: placement, textOptions: textOptions, hold: AppSettings.shared.captionHold)
+        RenderSnapshot(captions: captions, style: style, placement: placement, textOptions: textOptions, hold: AppSettings.shared.captionHold,
+                       watermark: watermark)
     }
 
     private func publish() {
@@ -157,6 +175,8 @@ final class CaptionItem: Identifiable {
             translationError = nil
             captions = CaptionBuilder.captions(from: words, grouping: style.grouping)
             status = .ready
+            speakerCount = 0
+            if speakerMode.isOn { detectSpeakers() }
             completion()
         }
         Task { [weak self, weak job] in
@@ -182,6 +202,121 @@ final class CaptionItem: Identifiable {
         if status == .transcribing { status = hasCaptions ? .ready : .waiting }
     }
 
+    // MARK: - Speakers
+
+    /// Listens to the video again and labels every word with a voice, then colors the captions.
+    /// Unedited captions are regrouped so a line never spans two speakers; edited ones keep
+    /// their grouping and take the voice that covers most of each line.
+    func detectSpeakers() {
+        speakerTask?.cancel()
+        guard speakerMode.isOn, !rawWords.isEmpty else { return }
+        let mode = speakerMode
+        let words = rawWords
+        let url = self.url
+        isDetectingSpeakers = true
+        speakerProgress = 0
+        speakerStatus = SpeakerDetector.needsModelDownload ? "Downloading the speaker model…" : "Reading audio…"
+        speakerError = nil
+        let started = Date()
+        speakerTask = Task { [weak self] in
+            let outcome: Result<[Int?], Error>
+            do {
+                outcome = .success(try await SpeakerDetector.detect(url: url, words: words, mode: mode) { phase in
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        switch phase {
+                        case .downloading(let fraction):
+                            speakerStatus = "Downloading the speaker model…"
+                            speakerProgress = fraction
+                        case .preparing:
+                            speakerStatus = "Preparing the speaker model…"
+                            speakerProgress = 0
+                        case .listening(let fraction):
+                            speakerStatus = "Listening for voices…"
+                            speakerProgress = fraction
+                        }
+                    }
+                })
+            } catch {
+                outcome = .failure(error)
+            }
+            guard let self, !Task.isCancelled else { return }
+            isDetectingSpeakers = false
+            switch outcome {
+            case .success(let labels):
+                guard rawWords == words else { return }
+                var labelled = words
+                for index in labelled.indices { labelled[index].speaker = labels[index] }
+                applySpeakers(words: labelled)
+                Self.log.notice("Identified \(self.speakerCount) speakers in \(self.name, privacy: .public) in \(Date().timeIntervalSince(started), format: .fixed(precision: 1))s")
+            case .failure(let error):
+                speakerError = error.localizedDescription
+                Self.log.error("Speaker detection failed for \(self.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
+    private func applySpeakers(words labelled: [TranscriptWord]) {
+        rawWords = labelled
+        if var translation {
+            // The originals are kept for "Original": give them the same voices by time.
+            translation.originalWords = translation.originalWords.map { word in
+                var updated = word
+                updated.speaker = CaptionBuilder.dominantSpeaker(of: labelled.filter { $0.end > word.start && $0.start < word.end })
+                return updated
+            }
+            translation.originalCaptions = translation.originalCaptions.map { caption in
+                var updated = caption
+                updated.speaker = Self.speaker(covering: caption, in: labelled)
+                return updated
+            }
+            self.translation = translation
+        }
+        speakerCount = Set(labelled.compactMap(\.speaker)).count
+        if hasEdits {
+            captions = captions.map { caption in
+                var updated = caption
+                updated.speaker = Self.speaker(covering: caption, in: labelled)
+                updated.words = updated.words.map { var word = $0; word.speaker = updated.speaker; return word }
+                return updated
+            }
+        } else {
+            captions = CaptionBuilder.captions(from: labelled, grouping: style.grouping)
+        }
+    }
+
+    /// The voice that speaks for most of `caption`'s span.
+    private static func speaker(covering caption: Caption, in words: [TranscriptWord]) -> Int? {
+        let overlapping = words.filter { $0.end > caption.start && $0.start < caption.end }
+        return CaptionBuilder.dominantSpeaker(of: overlapping)
+    }
+
+    private func speakerModeChanged() {
+        speakerTask?.cancel()
+        isDetectingSpeakers = false
+        speakerError = nil
+        if speakerMode.isOn {
+            detectSpeakers()
+        } else {
+            speakerCount = 0
+            rawWords = rawWords.map { var word = $0; word.speaker = nil; return word }
+            captions = captions.map { caption in
+                var cleared = caption
+                cleared.speaker = nil
+                cleared.words = cleared.words.map { var word = $0; word.speaker = nil; return word }
+                return cleared
+            }
+        }
+    }
+
+    /// Changes one caption's voice by hand.
+    func setSpeaker(_ speaker: Int?, of captionID: UUID) {
+        guard let index = captions.firstIndex(where: { $0.id == captionID }), captions[index].speaker != speaker else { return }
+        captions[index].speaker = speaker
+        captions[index].words = captions[index].words.map { var word = $0; word.speaker = speaker; return word }
+        hasEdits = true
+    }
+
     func importSubtitles(from subtitleURL: URL) throws {
         let words = try SubtitleImporter.words(from: subtitleURL)
         cancelTranscription()
@@ -192,6 +327,8 @@ final class CaptionItem: Identifiable {
         translationError = nil
         captions = CaptionBuilder.captions(from: words, grouping: style.grouping)
         status = .ready
+        speakerCount = 0
+        if speakerMode.isOn { detectSpeakers() }
     }
 
     func rebuildCaptions() {

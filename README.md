@@ -34,6 +34,17 @@ video file with the captions burned in.
   are kept; choosing "Original" restores them, and generating again clears the translation.
 - **Generate from**: the video's audio (default) or an SRT / WebVTT file. Subtitle cues are
   split into words timed by length and regrouped to the style.
+- **Speakers**: with Speakers on (detect automatically, or 2, 3 or 4 voices), Captioner listens
+  to the video again and labels every word with a voice, then colors each caption by speaker:
+  yellow, cyan, green and magenta, editable in the style editor's Speaker colors. Unedited
+  captions are regrouped so a line never spans two voices; edited ones keep their grouping and
+  take the voice that covers most of the line. Each caption's dot in the list is a menu to change
+  its speaker by hand. Automatic detection can miss a voice that only says a few words, so pick an
+  exact count when you know it. Export waits for detection to finish.
+- **Watermark**: an image (PNG with transparency works best) drawn over every frame under the
+  captions, with opacity, size (a share of the frame width), margin and a nine-spot position
+  grid. Images are copied into Application Support/Captioner/Watermarks; new videos start with
+  the last watermark used, and Apply Style to All copies it to every video.
 - **Editing**: the caption list beside the preview. Click a time to jump there, edit text in
   place (word timings are shared out again by length), right-click to split before a word, merge
   with the next caption, insert a blank line, edit the timing, or delete. A caption with no text
@@ -68,8 +79,9 @@ Caption File section writes an SRT, VTT or text file into Captioner's folder in 
 share sheet; the Exported alert's Share… button opens the share sheet for the video. On wide screens
 (iPad, or an unfolded iPhone: a regular width class or at least 600 points) the editor puts the video
 on the left and the caption list beside it instead of stacking them.
-Watched folders, Open at Login and Sparkle are Mac-only. Translation, saved styles and fonts
-(system designs, installed families, or imported files) work the same way as on the Mac.
+Watched folders, Open at Login and Sparkle are Mac-only. Translation, saved styles, fonts
+(system designs, installed families, or imported files), speakers (in the Captions sheet) and the
+watermark (its own sheet, with images from Photos or Files) work the same way as on the Mac.
 
 The simulator has no on-device speech models, so transcription fails there; the debug hook
 `CAPTIONER_DEBUG_SUBTITLES=/path.srt` (with `CAPTIONER_DEBUG_OPEN`) feeds captions from an SRT
@@ -92,6 +104,20 @@ play it fine, and the iOS 26 simulators do too; it is a known Xcode 27 simulator
   Platform differences inside `Shared/` are small `#if os(macOS)` blocks.
 - The speech engine (`TranscriptionEngine`, `MediaAudioReader`) is shared with Transcriber;
   keep fixes in sync between the two apps.
+- Speaker detection is `SpeakerDetector` over the local package `Packages/SpeakerDiarization`,
+  a thin wrapper around [FluidAudio](https://github.com/FluidInference/FluidAudio) 0.17.7
+  (Apache-2.0) that pins the version, hides its API and drops its 57 MB `NemoTextProcessing`
+  binary (`traits: []`). FluidAudio's offline diarizer runs Core ML conversions of pyannote's
+  `speaker-diarization-community-1` models (segmentation, WeSpeaker embedding, PLDA; CC-BY-4.0:
+  pyannote, WeSpeaker, BUT Speech@FIT, Fluid Inference), about 22 MB, downloaded from Hugging
+  Face on first use into `~/Library/Application Support/FluidAudio/Models/speaker-diarization/`.
+  Audio is decoded to 16 kHz mono with `MediaAudioReader`; the diarizer's turns are laid over
+  the transcript words in `SpeakerDetector.assign` (most overlap, else nearest within 0.75 s,
+  gaps follow neighbours). Linking the package adds about 13 MB to the Mac binary. The sandboxed
+  `app-store` build needs `com.apple.security.network.client` for the download.
+- `WatermarkLibrary` decodes watermark images once (ImageIO thumbnail, upright, at most 2048 px)
+  and `CaptionCompositor.makeWatermark` scales, fades and places them with Core Image, cached per
+  settings and frame size.
 - `CaptionRenderer` draws with Core Text into a Core Graphics context, bottom-left origin.
   Everything is sized relative to the font size, which is a fraction of the frame's shorter side,
   so a style looks the same at 1080p and 4K. `CaptionCompositor` is a custom `AVVideoCompositing`

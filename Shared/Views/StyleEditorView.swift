@@ -36,6 +36,14 @@ struct StyleEditorView: View {
             if style.highlight == .box || style.highlight == .underline {
                 colorRow(style.highlight == .box ? "Highlight box" : "Underline", $style.highlightColor)
             }
+            DisclosureGroup("Speaker colors") {
+                ForEach(0..<CaptionStyle.maxSpeakers, id: \.self) { index in
+                    colorRow("Speaker \(index + 1)", $style.speakerColors[index])
+                }
+                Text("Used when speakers are identified (Captions › Speakers). Captions without a speaker keep the text color.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Toggle("Pop the active word", isOn: $style.popActiveWord)
             Toggle("Show only the spoken word", isOn: $style.singleWord)
             if !style.singleWord {

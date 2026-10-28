@@ -171,6 +171,19 @@ nonisolated struct CaptionStyle: Codable, Hashable, Sendable, Identifiable {
 
     var grouping: CaptionGrouping = CaptionGrouping()
 
+    /// Text colors for speakers 1…4 once speakers have been identified; unlabelled captions
+    /// (a voiceover) keep `textColor`. Broadcast convention: yellow, cyan, green, magenta.
+    var speakerColors: [RGBAColor] = Self.defaultSpeakerColors
+
+    static let defaultSpeakerColors = [RGBAColor(0xFFD60A), RGBAColor(0x64D2FF), RGBAColor(0x30D158), RGBAColor(0xFF6EDC)]
+    static let maxSpeakers = 4
+
+    /// The color a caption's text is drawn in: the speaker's, or the plain text color.
+    func textColor(forSpeaker speaker: Int?) -> RGBAColor {
+        guard let speaker, speaker >= 1, speaker <= speakerColors.count else { return textColor }
+        return speakerColors[speaker - 1]
+    }
+
     var isMultiline: Bool { !singleWord && grouping.maxLines > 1 }
 
     /// The gallery category this style belongs to.
@@ -182,6 +195,49 @@ nonisolated struct CaptionStyle: Codable, Hashable, Sendable, Identifiable {
     init(id: String, name: String) {
         self.id = id
         self.name = name
+    }
+
+    // MARK: - Codable
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, font, weight, sizeScale, letterCase, letterSpacing, lineSpacing
+        case textColor, strokeWidth, strokeColor, shadowRadius, shadowOpacity, shadowColor
+        case highlight, activeTextColor, highlightColor, popActiveWord
+        case lineBackground, lineBackgroundColor, cornerRadius
+        case progressiveReveal, singleWord, grouping, speakerColors
+    }
+
+    /// Styles saved by an earlier version lack the keys added since; each one falls back to its
+    /// default so a saved style or the default style is never lost on upgrade.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        font = try c.decodeIfPresent(FontChoice.self, forKey: .font) ?? font
+        weight = try c.decodeIfPresent(FontWeight.self, forKey: .weight) ?? weight
+        sizeScale = try c.decodeIfPresent(Double.self, forKey: .sizeScale) ?? sizeScale
+        letterCase = try c.decodeIfPresent(LetterCase.self, forKey: .letterCase) ?? letterCase
+        letterSpacing = try c.decodeIfPresent(Double.self, forKey: .letterSpacing) ?? letterSpacing
+        lineSpacing = try c.decodeIfPresent(Double.self, forKey: .lineSpacing) ?? lineSpacing
+        textColor = try c.decodeIfPresent(RGBAColor.self, forKey: .textColor) ?? textColor
+        strokeWidth = try c.decodeIfPresent(Double.self, forKey: .strokeWidth) ?? strokeWidth
+        strokeColor = try c.decodeIfPresent(RGBAColor.self, forKey: .strokeColor) ?? strokeColor
+        shadowRadius = try c.decodeIfPresent(Double.self, forKey: .shadowRadius) ?? shadowRadius
+        shadowOpacity = try c.decodeIfPresent(Double.self, forKey: .shadowOpacity) ?? shadowOpacity
+        shadowColor = try c.decodeIfPresent(RGBAColor.self, forKey: .shadowColor) ?? shadowColor
+        highlight = try c.decodeIfPresent(HighlightKind.self, forKey: .highlight) ?? highlight
+        activeTextColor = try c.decodeIfPresent(RGBAColor.self, forKey: .activeTextColor) ?? activeTextColor
+        highlightColor = try c.decodeIfPresent(RGBAColor.self, forKey: .highlightColor) ?? highlightColor
+        popActiveWord = try c.decodeIfPresent(Bool.self, forKey: .popActiveWord) ?? popActiveWord
+        lineBackground = try c.decodeIfPresent(Bool.self, forKey: .lineBackground) ?? lineBackground
+        lineBackgroundColor = try c.decodeIfPresent(RGBAColor.self, forKey: .lineBackgroundColor) ?? lineBackgroundColor
+        cornerRadius = try c.decodeIfPresent(Double.self, forKey: .cornerRadius) ?? cornerRadius
+        progressiveReveal = try c.decodeIfPresent(Bool.self, forKey: .progressiveReveal) ?? progressiveReveal
+        singleWord = try c.decodeIfPresent(Bool.self, forKey: .singleWord) ?? singleWord
+        grouping = try c.decodeIfPresent(CaptionGrouping.self, forKey: .grouping) ?? grouping
+        var colors = try c.decodeIfPresent([RGBAColor].self, forKey: .speakerColors) ?? Self.defaultSpeakerColors
+        while colors.count < Self.maxSpeakers { colors.append(Self.defaultSpeakerColors[colors.count]) }
+        speakerColors = Array(colors.prefix(Self.maxSpeakers))
     }
 
     // MARK: - Presets
