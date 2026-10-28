@@ -10,19 +10,29 @@ struct InspectorView: View {
     @Environment(AppState.self) private var appState
     @State private var confirmRegenerate = false
     @State private var showPositionFor: FrameOrientation?
+    @State private var watermarkError: String?
 
     private var settings: AppSettings { AppSettings.shared }
 
     var body: some View {
         Form {
             captionsSection
+            speakersSection
             styleSection
             positionSection
+            watermarkSection
             controlsSection
         }
         .formStyle(.grouped)
         .onChange(of: item.placement) { _, placement in settings.placement = placement }
         .onChange(of: item.textOptions) { _, options in settings.textOptions = options }
+        .onChange(of: item.watermark) { _, watermark in settings.watermark = watermark }
+        .onChange(of: item.speakerMode) { _, mode in settings.speakerMode = mode }
+        .alert("Couldn't Use Image", isPresented: Binding(get: { watermarkError != nil }, set: { if !$0 { watermarkError = nil } })) {
+            Button("OK") { watermarkError = nil }
+        } message: {
+            Text(watermarkError ?? "")
+        }
         .onChange(of: item.localeIdentifier) { _, identifier in
             settings.localeIdentifier = identifier
             // A new language means a new transcription; edits are worth a confirmation first.
@@ -145,6 +155,97 @@ struct InspectorView: View {
         }
     }
 
+    // MARK: - Speakers
+
+    private var speakersSection: some View {
+        Section {
+            Picker("Speakers", selection: $item.speakerMode) {
+                ForEach(SpeakerMode.choices, id: \.self) { Text($0.title).tag($0) }
+            }
+            if item.isDetectingSpeakers {
+                HStack(spacing: 8) {
+                    ProgressView(value: item.speakerProgress)
+                        .controlSize(.small)
+                    Text("\(item.speakerStatus) \(Int(item.speakerProgress * 100))%")
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                }
+            } else if let error = item.speakerError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            } else if item.speakerMode.isOn {
+                HStack {
+                    Text(item.speakerCount > 0 ? "\(item.speakerCount) \(item.speakerCount == 1 ? "voice" : "voices") found. Each caption's dot in the list changes its speaker; the colors are in the style."
+                         : "Captions are colored by who is speaking once the video is transcribed.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Identify Again") { item.detectSpeakers() }
+                        .controlSize(.small)
+                        .disabled(!item.hasCaptions || item.status.isBusy)
+                }
+            } else {
+                Text("Colors each caption by voice: yellow, cyan, green and magenta for up to four speakers. A voiceover or narrator with no speaker keeps the text color. The first time, a 22 MB speaker model is downloaded; after that it works offline.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Speakers")
+        }
+    }
+
+    // MARK: - Watermark
+
+    private var watermarkSection: some View {
+        Section {
+            HStack(spacing: 12) {
+                WatermarkThumbnail(fileName: item.watermark.fileName)
+                VStack(alignment: .leading, spacing: 6) {
+                    Button(item.watermark.isEnabled ? "Change Image…" : "Choose Image…") { chooseWatermark() }
+                    if item.watermark.isEnabled {
+                        Button("Remove") { removeWatermark() }
+                    }
+                }
+                .controlSize(.small)
+                Spacer()
+            }
+            WatermarkControls(settings: $item.watermark)
+            Text("A logo or handle drawn over every frame, under the captions. PNGs with transparency work best. New videos start with this watermark.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } header: {
+            Text("Watermark")
+        }
+    }
+
+    private func chooseWatermark() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = WatermarkLibrary.supportedTypes
+        panel.message = "Choose an image to draw over the video."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let previous = item.watermark.fileName
+            item.watermark.fileName = try WatermarkLibrary.add(url)
+            if let previous { forgetWatermarkFile(previous) }
+        } catch {
+            watermarkError = error.localizedDescription
+        }
+    }
+
+    private func removeWatermark() {
+        guard let fileName = item.watermark.fileName else { return }
+        item.watermark.fileName = nil
+        forgetWatermarkFile(fileName)
+    }
+
+    /// Deletes a watermark image once no video in the queue uses it any more.
+    private func forgetWatermarkFile(_ fileName: String) {
+        guard !queue.items.contains(where: { $0.watermark.fileName == fileName }) else { return }
+        WatermarkLibrary.remove(fileName)
+    }
+
     // MARK: - Style
 
     private var styleSection: some View {
@@ -183,7 +284,7 @@ struct InspectorView: View {
                 Spacer()
                 Button("Apply to All Videos") { applyToAll() }
                     .disabled(queue.items.count < 2)
-                    .help("Use this style, position and controls for every video in the queue")
+                    .help("Use this style, position, speakers, watermark and controls for every video in the queue")
             }
         } header: {
             Text("Style")
@@ -237,6 +338,8 @@ struct InspectorView: View {
             other.style = item.style
             other.placement = item.placement
             other.textOptions = item.textOptions
+            other.watermark = item.watermark
+            other.speakerMode = item.speakerMode
         }
     }
 

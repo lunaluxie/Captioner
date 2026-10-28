@@ -37,6 +37,14 @@ final class AppSettings {
     var placement: PlacementSettings {
         didSet { store(placement, key: "placement") }
     }
+    /// The watermark new videos start with.
+    var watermark: WatermarkSettings {
+        didSet { store(watermark, key: "watermark") }
+    }
+    /// Whether new videos look for speakers.
+    var speakerMode: SpeakerMode {
+        didSet { store(speakerMode, key: "speakerMode") }
+    }
     var favoriteStyleIDs: Set<String> {
         didSet { defaults.set(Array(favoriteStyleIDs).sorted(), forKey: "favoriteStyleIDs") }
     }
@@ -67,6 +75,8 @@ final class AppSettings {
         savedStyles = Self.load([CaptionStyle].self, key: "savedStyles", from: defaults) ?? []
         defaultStyle = Self.load(CaptionStyle.self, key: "defaultStyle", from: defaults) ?? .default
         placement = Self.load(PlacementSettings.self, key: "placement", from: defaults) ?? .default
+        watermark = Self.load(WatermarkSettings.self, key: "watermark", from: defaults) ?? .default
+        speakerMode = Self.load(SpeakerMode.self, key: "speakerMode", from: defaults) ?? .off
         favoriteStyleIDs = Set(defaults.stringArray(forKey: "favoriteStyleIDs") ?? [])
         exportCodec = ExportCodec(rawValue: defaults.string(forKey: "exportCodec") ?? "") ?? .h264
         exportLocation = ExportLocation(rawValue: defaults.string(forKey: "exportLocation") ?? "") ?? .nextToOriginal

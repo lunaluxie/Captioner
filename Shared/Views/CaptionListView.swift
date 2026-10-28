@@ -179,6 +179,10 @@ struct CaptionRow: View {
             .buttonStyle(.plain)
             .frame(width: 56, alignment: .leading)
             .padding(.top, 3)
+            if item.speakerMode.isOn {
+                SpeakerChip(caption: caption, style: item.style) { item.setSpeaker($0, of: caption.id) }
+                    .padding(.top, 1)
+            }
             TextField("Blank line, nothing shown", text: $text, axis: .vertical)
                 .textFieldStyle(.plain)
                 .focused($focused)
@@ -213,6 +217,14 @@ struct CaptionRow: View {
                 .disabled(item.captions.last?.id == caption.id)
             Button("Insert Blank Line After") { item.insertBlank(after: caption.id) }
             Button("Edit Timing…") { onEditTiming() }
+            if item.speakerMode.isOn {
+                Menu("Speaker") {
+                    Button("No speaker") { item.setSpeaker(nil, of: caption.id) }
+                    ForEach(1...CaptionStyle.maxSpeakers, id: \.self) { number in
+                        Button("Speaker \(number)") { item.setSpeaker(number, of: caption.id) }
+                    }
+                }
+            }
             Divider()
             Button("Delete", role: .destructive) { item.delete(caption.id) }
         }

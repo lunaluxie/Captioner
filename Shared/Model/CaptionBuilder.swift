@@ -19,19 +19,28 @@ nonisolated enum CaptionBuilder {
         var captions: [Caption] = []
         for phrase in phrases(words, pauseBreak: grouping.pauseBreak) {
             for chunk in chunks(phrase, grouping: grouping) {
-                captions.append(Caption(words: chunk))
+                captions.append(Caption(words: chunk, speaker: dominantSpeaker(of: chunk)))
             }
         }
         return normalized(captions)
     }
 
-    /// Splits at pauses and after sentence-ending punctuation.
+    /// The speaker most of the words belong to, by spoken time; nil when none are labelled.
+    static func dominantSpeaker(of words: [TranscriptWord]) -> Int? {
+        var time: [Int: TimeInterval] = [:]
+        for word in words {
+            if let speaker = word.speaker { time[speaker, default: 0] += max(word.duration, 0.05) }
+        }
+        return time.max { $0.value < $1.value }?.key
+    }
+
+    /// Splits at pauses, after sentence-ending punctuation, and wherever the speaker changes.
     static func phrases(_ words: [TranscriptWord], pauseBreak: TimeInterval) -> [[TranscriptWord]] {
         var phrases: [[TranscriptWord]] = []
         var current: [TranscriptWord] = []
         for word in words where !word.text.isEmpty {
             if let last = current.last {
-                if word.start - last.end >= pauseBreak || endsSentence(last.text) {
+                if word.start - last.end >= pauseBreak || endsSentence(last.text) || word.speaker != last.speaker {
                     phrases.append(current)
                     current = []
                 }
@@ -141,8 +150,8 @@ nonisolated enum CaptionBuilder {
         let caption = captions[index]
         guard wordIndex > 0, wordIndex < caption.words.count else { return captions }
         var result = captions
-        result[index] = Caption(id: caption.id, words: Array(caption.words[..<wordIndex]))
-        result.insert(Caption(words: Array(caption.words[wordIndex...])), at: index + 1)
+        result[index] = Caption(id: caption.id, words: Array(caption.words[..<wordIndex]), speaker: caption.speaker)
+        result.insert(Caption(words: Array(caption.words[wordIndex...]), speaker: caption.speaker), at: index + 1)
         return result
     }
 
@@ -150,7 +159,7 @@ nonisolated enum CaptionBuilder {
     static func mergeWithNext(_ captions: [Caption], at index: Int) -> [Caption] {
         guard captions.indices.contains(index), index + 1 < captions.count else { return captions }
         var result = captions
-        let merged = Caption(id: captions[index].id, words: captions[index].words + captions[index + 1].words)
+        let merged = Caption(id: captions[index].id, words: captions[index].words + captions[index + 1].words, speaker: captions[index].speaker)
         result[index] = merged
         result.remove(at: index + 1)
         return result

@@ -5,6 +5,8 @@ nonisolated struct TranscriptWord: Codable, Hashable, Sendable {
     var text: String
     var start: TimeInterval
     var end: TimeInterval
+    /// Who said it, 1…4, once speakers have been identified; nil when unknown or for a voiceover.
+    var speaker: Int? = nil
 
     var duration: TimeInterval { max(0, end - start) }
 }
@@ -14,10 +16,13 @@ nonisolated struct TranscriptWord: Codable, Hashable, Sendable {
 nonisolated struct Caption: Codable, Hashable, Identifiable, Sendable {
     var id: UUID
     var words: [TranscriptWord]
+    /// The speaker this caption is colored for, 1…4; nil draws it in the style's text color.
+    var speaker: Int? = nil
 
-    init(id: UUID = UUID(), words: [TranscriptWord]) {
+    init(id: UUID = UUID(), words: [TranscriptWord], speaker: Int? = nil) {
         self.id = id
         self.words = words
+        self.speaker = speaker
     }
 
     var start: TimeInterval { words.first?.start ?? 0 }
@@ -46,7 +51,7 @@ nonisolated struct Caption: Codable, Hashable, Identifiable, Sendable {
     /// proportion to their length so highlighting still moves at roughly the spoken pace.
     func replacingText(_ text: String) -> Caption {
         let pieces = text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).map(String.init)
-        guard !pieces.isEmpty else { return Caption(id: id, words: [TranscriptWord(text: "", start: start, end: end)]) }
+        guard !pieces.isEmpty else { return Caption(id: id, words: [TranscriptWord(text: "", start: start, end: end, speaker: speaker)], speaker: speaker) }
         let span = max(duration, 0.2)
         let totalLength = Double(pieces.reduce(0) { $0 + $1.count })
         var cursor = start
@@ -54,11 +59,11 @@ nonisolated struct Caption: Codable, Hashable, Identifiable, Sendable {
         for piece in pieces {
             let share = totalLength > 0 ? Double(piece.count) / totalLength : 1 / Double(pieces.count)
             let wordEnd = cursor + span * share
-            newWords.append(TranscriptWord(text: piece, start: cursor, end: wordEnd))
+            newWords.append(TranscriptWord(text: piece, start: cursor, end: wordEnd, speaker: speaker))
             cursor = wordEnd
         }
         newWords[newWords.count - 1].end = end
-        return Caption(id: id, words: newWords)
+        return Caption(id: id, words: newWords, speaker: speaker)
     }
 
     func retimed(start newStart: TimeInterval, end newEnd: TimeInterval) -> Caption {
@@ -68,9 +73,10 @@ nonisolated struct Caption: Codable, Hashable, Identifiable, Sendable {
         let moved = words.map { word in
             TranscriptWord(text: word.text,
                            start: newStart + (word.start - start) * scale,
-                           end: newStart + (word.end - start) * scale)
+                           end: newStart + (word.end - start) * scale,
+                           speaker: word.speaker)
         }
-        return Caption(id: id, words: moved)
+        return Caption(id: id, words: moved, speaker: speaker)
     }
 }
 

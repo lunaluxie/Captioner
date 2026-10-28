@@ -10,6 +10,7 @@ nonisolated struct RenderSnapshot: Hashable, Sendable {
     var textOptions: TextOptions
     /// How long a caption stays after its last word when nothing follows it.
     var hold: TimeInterval = 1.0
+    var watermark: WatermarkSettings = .default
 }
 
 /// One laid-out word: where it sits and what it says after the text options are applied.
@@ -25,6 +26,8 @@ nonisolated struct LaidWord {
 /// A caption measured into lines for a frame of a given size.
 nonisolated struct CaptionLayout {
     var captionID: UUID
+    /// The speaker the caption is colored for.
+    var speaker: Int?
     var fontSize: CGFloat
     var ascent: CGFloat
     var descent: CGFloat
@@ -50,7 +53,7 @@ nonisolated enum CaptionRenderer {
         guard style.singleWord else { return (caption, active) }
         let index = active ?? 0
         guard caption.words.indices.contains(index) else { return (caption, active) }
-        return (Caption(id: caption.id, words: [caption.words[index]]), 0)
+        return (Caption(id: caption.id, words: [caption.words[index]], speaker: caption.speaker), 0)
     }
 
     /// Draws whatever caption is visible at `time` into `context`, a frame of `size`.
@@ -181,7 +184,7 @@ nonisolated enum CaptionRenderer {
             lines.append(laid)
         }
         if block.isNull { block = CGRect(x: size.width / 2, y: centerY, width: 0, height: 0) }
-        return CaptionLayout(captionID: caption.id, fontSize: fontSize, ascent: ascent, descent: descent, lines: lines, blockRect: block)
+        return CaptionLayout(captionID: caption.id, speaker: caption.speaker, fontSize: fontSize, ascent: ascent, descent: descent, lines: lines, blockRect: block)
     }
 
     /// The layout's bounds plus everything drawn around the text: boxes, outlines, shadows, the pop.
@@ -270,9 +273,10 @@ nonisolated enum CaptionRenderer {
         }
 
         // Words.
+        let baseColor = style.textColor(forSpeaker: layout.speaker)
         for (index, word) in words.enumerated() where visible(index) {
             let isActive = index == activeIndex && style.highlight != .none
-            let color = (isActive ? style.activeTextColor : style.textColor).cgColor
+            let color = (isActive ? style.activeTextColor : baseColor).cgColor
             let scale = activeScale(for: index)
 
             context.saveGState()

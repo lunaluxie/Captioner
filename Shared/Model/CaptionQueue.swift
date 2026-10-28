@@ -191,7 +191,20 @@ final class CaptionQueue {
             return
         }
         let id = exportPending.removeFirst()
-        guard let item = items.first(where: { $0.id == id }), let composition = item.exportComposition() else {
+        guard let item = items.first(where: { $0.id == id }) else {
+            pumpExport()
+            return
+        }
+        if item.isDetectingSpeakers {
+            // The captions are about to be colored by voice; export them once they are.
+            exportPending.insert(id, at: 0)
+            Task {
+                try? await Task.sleep(for: .milliseconds(300))
+                pumpExport()
+            }
+            return
+        }
+        guard let composition = item.exportComposition() else {
             pumpExport()
             return
         }
