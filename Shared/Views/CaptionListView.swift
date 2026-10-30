@@ -32,38 +32,38 @@ struct CaptionListView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             Divider()
-            if item.captions.isEmpty {
-                ContentUnavailableView {
-                    Label(item.isTranscribing ? "Listening…" : "No Captions Yet", systemImage: "text.bubble")
-                } description: {
-                    Text(item.isTranscribing ? "Captions appear here as the speech is recognized." : "Captions are generated from the video's audio, or import a subtitle file in the inspector.")
+            ScrollViewReader { proxy in
+                List {
+                    ForEach(Array(item.captions.enumerated()), id: \.element.id) { index, caption in
+                        CaptionRow(caption: caption, isCurrent: index == currentIndex, item: item,
+                                   onSeek: { player.seek(to: caption.start) },
+                                   onEditTiming: { timingCaption = caption })
+                            .id(caption.id)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
+                    }
                 }
-            } else {
-                ScrollViewReader { proxy in
-                    List {
-                        ForEach(Array(item.captions.enumerated()), id: \.element.id) { index, caption in
-                            CaptionRow(caption: caption, isCurrent: index == currentIndex, item: item,
-                                       onSeek: { player.seek(to: caption.start) },
-                                       onEditTiming: { timingCaption = caption })
-                                .id(caption.id)
-                                .listRowSeparator(.hidden)
-                                .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
-                        }
+                .listStyle(.plain)
+                #if os(iOS)
+                .scrollDismissesKeyboard(.interactively)
+                .toolbar {
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button("Done") { endEditing() }
+                            .fontWeight(.semibold)
                     }
-                    .listStyle(.plain)
-                    #if os(iOS)
-                    .scrollDismissesKeyboard(.interactively)
-                    .toolbar {
-                        ToolbarItemGroup(placement: .keyboard) {
-                            Spacer()
-                            Button("Done") { endEditing() }
-                                .fontWeight(.semibold)
-                        }
-                    }
-                    #endif
-                    .onChange(of: currentIndex) { _, index in
-                        guard followPlayback, player.isPlaying, let index, item.captions.indices.contains(index) else { return }
-                        withAnimation { proxy.scrollTo(item.captions[index].id, anchor: .center) }
+                }
+                #endif
+                .onChange(of: currentIndex) { _, index in
+                    guard followPlayback, player.isPlaying, let index, item.captions.indices.contains(index) else { return }
+                    withAnimation { proxy.scrollTo(item.captions[index].id, anchor: .center) }
+                }
+            } .overlay {
+                if item.captions.isEmpty {
+                    ContentUnavailableView {
+                        Label(item.isTranscribing ? "Listening…" : "No Captions Yet", systemImage: "text.bubble")
+                    } description: {
+                        Text(item.isTranscribing ? "Captions appear here as the speech is recognized." : "Captions are generated from the video's audio, or import a subtitle file in the inspector.")
                     }
                 }
             }
